@@ -236,6 +236,17 @@ void draw_elements(const UiDrawContext *ctx)
         }
     }
 
+    if (ctx->benchmarkRunning) {
+        int bannerWidth = 560;
+        int bannerHeight = 34;
+        int bannerX = (ctx->width - bannerWidth) / 2;
+        int bannerY = 12;
+        if (bannerX < 10) bannerX = 10;
+        DrawRectangle(bannerX, bannerY, bannerWidth, bannerHeight, Fade(DARKBLUE, 0.85f));
+        DrawRectangleLinesEx((Rectangle){ (float)bannerX, (float)bannerY, (float)bannerWidth, (float)bannerHeight }, 2.0f, SKYBLUE);
+        DrawText(ctx->benchmarkStatusText != NULL ? ctx->benchmarkStatusText : "BENCHMARK RUNNING", bannerX + 10, bannerY + 8, 20, YELLOW);
+    }
+
     if (!ctx->showHud) {
         if (ctx->pauseMenuActive) {
             draw_pause_menu(ctx);

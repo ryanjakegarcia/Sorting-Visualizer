@@ -102,6 +102,9 @@ typedef struct UiDrawContext {
 
     float autoNextSortDelay;
     float autoNextSortTimer;
+
+    bool benchmarkRunning;
+    const char *benchmarkStatusText;
 } UiDrawContext;
 
 Rectangle ui_get_size_input_box(int height);

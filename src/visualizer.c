@@ -1254,7 +1254,17 @@ int main(){
         char telemetryLine1[96] = { 0 };
         char telemetryLine2[96] = { 0 };
         char telemetryLine3[96] = { 0 };
+        char benchmarkStatus[160] = { 0 };
         fill_current_sort_telemetry(telemetryLine1, sizeof(telemetryLine1), telemetryLine2, sizeof(telemetryLine2), telemetryLine3, sizeof(telemetryLine3));
+
+        if (benchmark.running && benchmark.currentSortIndex >= 0 && benchmark.currentSortIndex < benchmark.sequenceCount) {
+            const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode);
+            if (benchmark.inWarmup) {
+                snprintf(benchmarkStatus, sizeof(benchmarkStatus), "BENCHMARK RUNNING: Warmup %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, benchmark.sequenceCount);
+            } else {
+                snprintf(benchmarkStatus, sizeof(benchmarkStatus), "BENCHMARK RUNNING: %s  run %d/%d  (%d/%d)", runningName, benchmark.currentRunIndex + 1, benchmark.configRunsPerSort, benchmark.currentSortIndex + 1, benchmark.sequenceCount);
+            }
+        }
 
         int currentSortIndex = get_sort_index(app.currentSort);
         if (currentSortIndex < 0) {
@@ -1345,7 +1355,9 @@ int main(){
             .minimalUiMode = app.minimalUiMode,
             .showInfo = IsKeyDown(KEY_I),
             .autoNextSortDelay = autoNextSortDelay,
-            .autoNextSortTimer = app.autoNextSortTimer
+            .autoNextSortTimer = app.autoNextSortTimer,
+            .benchmarkRunning = benchmark.running,
+            .benchmarkStatusText = benchmarkStatus
         };
         draw_elements(&ui);
         draw_benchmark_overlay();
