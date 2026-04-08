@@ -14,6 +14,7 @@ typedef struct ControllerContext {
     int windowWidth;
     int windowHeight;
     int maxSize;
+    bool benchmarkOverlayActive;
 
     int *arraySize;
     bool *sizeInputActive;

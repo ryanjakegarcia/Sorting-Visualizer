@@ -80,9 +80,19 @@ static void draw_pause_menu(const UiDrawContext *ctx)
     DrawText("Pause Menu", menuX + 20, menuY + 16, 30, YELLOW);
     DrawText("UP/DOWN + ENTER, SPACE to close", menuX + 20, menuY + 52, 18, LIGHTGRAY);
 
+    Vector2 mousePos = GetMousePosition();
+
     for (int i = 0; i < itemCount; i++) {
         char itemText[96] = { 0 };
         Color c = (i == ctx->pauseMenuSelection) ? YELLOW : RAYWHITE;
+        Rectangle itemRect = ui_get_pause_menu_item_rect(ctx->width, ctx->height, i);
+        bool hovered = CheckCollisionPointRec(mousePos, itemRect);
+        bool pressed = hovered && IsMouseButtonDown(MOUSE_LEFT_BUTTON);
+
+        if (hovered) {
+            DrawRectangleRec(itemRect, Fade(SKYBLUE, pressed ? 0.35f : 0.20f));
+            SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        }
 
         switch (i) {
             case 0:

@@ -713,7 +713,7 @@ static void draw_benchmark_overlay(void)
     DrawText("Benchmark Suite [X]", panelX + 16, panelY + 14, 26, YELLOW);
     DrawText(TextFormat("N=%d  Dist=%s  Sorts=%d/%d", app.arraySize, get_distribution_name(), benchmark.sequenceCount, SORT_REGISTRY_COUNT), panelX + 16, panelY + 44, 20, LIGHTGRAY);
     DrawText(TextFormat("Config: Runs[-/=]%d  Seed[Z]:%s  Warmup[W]:%s", benchmark.configRunsPerSort, benchmark.configUseFixedSeed ? "ON" : "OFF", benchmark.configWarmup ? "ON" : "OFF"), panelX + 16, panelY + 68, 18, LIGHTGRAY);
-    DrawText(TextFormat("Seed Value [,/.]: %u  Subset [LEFT/RIGHT or [ / ]], Toggle[;], Enter=start", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
+    DrawText(TextFormat("Seed Value [,/.]: %u  Subset [LEFT/RIGHT], Toggle[;], Enter=start", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
 
     int buttonY = panelY + 118;
     Rectangle runsMinusButton = { (float)(panelX + 16), (float)buttonY, 24.0f, 24.0f };
@@ -724,13 +724,26 @@ static void draw_benchmark_overlay(void)
     Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
     Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
 
-    DrawRectangleRec(runsMinusButton, Fade(DARKGRAY, 0.8f));
-    DrawRectangleRec(runsPlusButton, Fade(DARKGRAY, 0.8f));
-    DrawRectangleRec(seedMinusButton, Fade(DARKGRAY, 0.8f));
-    DrawRectangleRec(seedPlusButton, Fade(DARKGRAY, 0.8f));
-    DrawRectangleRec(fixedSeedButton, Fade(benchmark.configUseFixedSeed ? DARKGREEN : DARKGRAY, 0.8f));
-    DrawRectangleRec(warmupButton, Fade(benchmark.configWarmup ? DARKGREEN : DARKGRAY, 0.8f));
-    DrawRectangleRec(startButton, Fade(benchmark.running ? DARKGRAY : DARKBLUE, 0.85f));
+    Vector2 mousePos = GetMousePosition();
+    bool hoverRunsMinus = CheckCollisionPointRec(mousePos, runsMinusButton);
+    bool hoverRunsPlus = CheckCollisionPointRec(mousePos, runsPlusButton);
+    bool hoverSeedMinus = CheckCollisionPointRec(mousePos, seedMinusButton);
+    bool hoverSeedPlus = CheckCollisionPointRec(mousePos, seedPlusButton);
+    bool hoverFixedSeed = CheckCollisionPointRec(mousePos, fixedSeedButton);
+    bool hoverWarmup = CheckCollisionPointRec(mousePos, warmupButton);
+    bool hoverStart = CheckCollisionPointRec(mousePos, startButton);
+
+    if (hoverRunsMinus || hoverRunsPlus || hoverSeedMinus || hoverSeedPlus || hoverFixedSeed || hoverWarmup || hoverStart) {
+        SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+    }
+
+    DrawRectangleRec(runsMinusButton, Fade(DARKGRAY, hoverRunsMinus ? 0.95f : 0.8f));
+    DrawRectangleRec(runsPlusButton, Fade(DARKGRAY, hoverRunsPlus ? 0.95f : 0.8f));
+    DrawRectangleRec(seedMinusButton, Fade(DARKGRAY, hoverSeedMinus ? 0.95f : 0.8f));
+    DrawRectangleRec(seedPlusButton, Fade(DARKGRAY, hoverSeedPlus ? 0.95f : 0.8f));
+    DrawRectangleRec(fixedSeedButton, Fade(benchmark.configUseFixedSeed ? DARKGREEN : DARKGRAY, hoverFixedSeed ? 0.95f : 0.8f));
+    DrawRectangleRec(warmupButton, Fade(benchmark.configWarmup ? DARKGREEN : DARKGRAY, hoverWarmup ? 0.95f : 0.8f));
+    DrawRectangleRec(startButton, Fade(benchmark.running ? DARKGRAY : DARKBLUE, hoverStart ? 1.0f : 0.85f));
 
     DrawRectangleLinesEx(runsMinusButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(runsPlusButton, 1.0f, LIGHTGRAY);
@@ -788,6 +801,11 @@ static void draw_benchmark_overlay(void)
         const BenchmarkResult *result = &benchmark.results[i];
         bool enabled = benchmark.sortEnabled[i];
         bool selected = (!benchmark.running && benchmark.active && i == benchmark.selectedConfigSortIndex);
+        Rectangle rowRect = { (float)(panelX + 10), (float)(rowY + i * 24 - 2), (float)(panelW - 20), 24.0f };
+        bool hoveredRow = CheckCollisionPointRec(mousePos, rowRect);
+        if (hoveredRow) {
+            SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        }
         float avg = (result->runs > 0) ? (result->totalElapsed / (float)result->runs) : 0.0f;
         float min = (result->runs > 0) ? result->minElapsed : 0.0f;
         float max = (result->runs > 0) ? result->maxElapsed : 0.0f;
@@ -795,7 +813,9 @@ static void draw_benchmark_overlay(void)
         unsigned long long avgSwp = (result->runs > 0) ? (result->totalSwaps / (unsigned long long)result->runs) : 0ULL;
         Color rowColor = enabled ? RAYWHITE : GRAY;
         if (selected) {
-            DrawRectangle(panelX + 10, rowY + i * 24 - 2, panelW - 20, 24, Fade(SKYBLUE, 0.25f));
+            DrawRectangle(panelX + 10, rowY + i * 24 - 2, panelW - 20, 24, Fade(SKYBLUE, hoveredRow ? 0.40f : 0.25f));
+        } else if (hoveredRow) {
+            DrawRectangle(panelX + 10, rowY + i * 24 - 2, panelW - 20, 24, Fade(SKYBLUE, 0.15f));
         }
         DrawText(TextFormat("[%c] %s", enabled ? 'x' : ' ', sortRegistry[i].name), panelX + 16, rowY + i * 24, 20, rowColor);
         DrawText(TextFormat("%.3f", avg), panelX + 150, rowY + i * 24, 20, rowColor);
@@ -971,6 +991,7 @@ int main(){
             .windowWidth = WIDTH,
             .windowHeight = HEIGHT,
             .maxSize = MAX_SIZE,
+            .benchmarkOverlayActive = benchmark.active,
             .arraySize = &app.arraySize,
             .sizeInputActive = &app.sizeInputActive,
             .sizeInput = app.sizeInput,
@@ -1131,14 +1152,14 @@ int main(){
                     }
                 }
 
-                if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_LEFT_BRACKET)) {
+                if (IsKeyPressed(KEY_LEFT)) {
                     benchmark.selectedConfigSortIndex--;
                     if (benchmark.selectedConfigSortIndex < 0) {
                         benchmark.selectedConfigSortIndex = SORT_REGISTRY_COUNT - 1;
                     }
                 }
 
-                if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_RIGHT_BRACKET)) {
+                if (IsKeyPressed(KEY_RIGHT)) {
                     benchmark.selectedConfigSortIndex++;
                     if (benchmark.selectedConfigSortIndex >= SORT_REGISTRY_COUNT) {
                         benchmark.selectedConfigSortIndex = 0;
@@ -1227,6 +1248,7 @@ int main(){
         }
 
         BeginDrawing();
+        SetMouseCursor(MOUSE_CURSOR_DEFAULT);
         ClearBackground(BLACK);
 
         char telemetryLine1[96] = { 0 };

@@ -115,7 +115,7 @@ static void execute_pause_menu_action(ControllerContext *ctx)
 
 void controller_handle_input(ControllerContext *ctx, float dt)
 {
-    if (IsKeyPressed(KEY_SPACE) && !*ctx->sizeInputActive) {
+    if (IsKeyPressed(KEY_SPACE) && !*ctx->sizeInputActive && !ctx->benchmarkOverlayActive) {
         if (!*ctx->pauseMenuActive) {
             *ctx->pausedBeforeMenu = *ctx->paused;
             *ctx->paused = true;
@@ -127,7 +127,7 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         }
     }
 
-    bool allowSizeBoxInteraction = *ctx->showHud && *ctx->showSizeInputBox && !*ctx->minimalUiMode && !*ctx->pauseMenuActive;
+    bool allowSizeBoxInteraction = *ctx->showHud && *ctx->showSizeInputBox && !*ctx->minimalUiMode && !*ctx->pauseMenuActive && !ctx->benchmarkOverlayActive;
     Rectangle sizeBox = ui_get_size_input_box(ctx->windowHeight);
     if (allowSizeBoxInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         Vector2 mousePos = GetMousePosition();
@@ -172,9 +172,11 @@ void controller_handle_input(ControllerContext *ctx, float dt)
     if (*ctx->pauseMenuActive && !*ctx->sizeInputActive) {
         int itemCount = ui_get_pause_menu_item_count();
         Vector2 mousePos = GetMousePosition();
+        int hoveredIndex = -1;
         for (int i = 0; i < itemCount; i++) {
             Rectangle itemRect = ui_get_pause_menu_item_rect(ctx->windowWidth, ctx->windowHeight, i);
             if (CheckCollisionPointRec(mousePos, itemRect)) {
+                hoveredIndex = i;
                 *ctx->pauseMenuSelection = i;
                 break;
             }
@@ -194,12 +196,12 @@ void controller_handle_input(ControllerContext *ctx, float dt)
             execute_pause_menu_action(ctx);
         }
 
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (hoveredIndex >= 0 && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
             execute_pause_menu_action(ctx);
         }
     }
 
-    if (!*ctx->sizeInputActive && !*ctx->pauseMenuActive) {
+    if (!*ctx->sizeInputActive && !*ctx->pauseMenuActive && !ctx->benchmarkOverlayActive) {
         if (IsKeyPressed(KEY_M)) {
             *ctx->stepMode = !*ctx->stepMode;
             *ctx->stepOnceRequested = false;
