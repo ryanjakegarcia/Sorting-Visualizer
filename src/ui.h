@@ -6,6 +6,11 @@
 #include "app_types.h"
 
 typedef struct UiDrawContext {
+    Color sortColorA;
+    Color sortColorB;
+    Color sortColorC;
+    Color sortColorD;
+
     int width;
     int height;
     int maxSize;

@@ -37,7 +37,24 @@ typedef struct SortDescriptor {
     void (*runStep)(void);
     void (*resetState)(void);
     void (*fillTelemetry)(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+    int colorAId;
+    int colorBId;
+    int colorCId;
+    int colorDId;
 } SortDescriptor;
+
+enum {
+    COLOR_ID_RED = 0,
+    COLOR_ID_ORANGE,
+    COLOR_ID_MAROON,
+    COLOR_ID_SKYBLUE,
+    COLOR_ID_VIOLET,
+    COLOR_ID_PINK,
+    COLOR_ID_GOLD,
+    COLOR_ID_BLUE,
+    COLOR_ID_PURPLE,
+    COLOR_ID_MAGENTA
+};
 
 static void run_bubble_step(void);
 static void run_insertion_step(void);
@@ -61,15 +78,16 @@ static void fill_quick_telemetry(char *line1, size_t line1Size, char *line2, siz
 static void fill_shell_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_merge_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static Color color_from_id(int colorId);
 
 static const SortDescriptor sortRegistry[] = {
-    { SORT_BUBBLE, "Bubble", run_bubble_step, reset_bubble_state, fill_bubble_telemetry },
-    { SORT_INSERTION, "Insertion", run_insertion_step, reset_insertion_state, fill_insertion_telemetry },
-    { SORT_SHELL, "Shell", run_shell_step, reset_shell_state, fill_shell_telemetry },
-    { SORT_MERGE, "Merge", run_merge_step, reset_merge_state, fill_merge_telemetry },
-    { SORT_SELECTION, "Selection", run_selection_step, reset_selection_state, fill_selection_telemetry },
-    { SORT_HEAP, "Heap", run_heap_step, reset_heap_state, fill_heap_telemetry },
-    { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry }
+    { SORT_BUBBLE, "Bubble", run_bubble_step, reset_bubble_state, fill_bubble_telemetry, COLOR_ID_RED, COLOR_ID_ORANGE, COLOR_ID_MAROON, COLOR_ID_SKYBLUE },
+    { SORT_INSERTION, "Insertion", run_insertion_step, reset_insertion_state, fill_insertion_telemetry, COLOR_ID_VIOLET, COLOR_ID_ORANGE, COLOR_ID_PINK, COLOR_ID_SKYBLUE },
+    { SORT_SHELL, "Shell", run_shell_step, reset_shell_state, fill_shell_telemetry, COLOR_ID_MAROON, COLOR_ID_GOLD, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
+    { SORT_MERGE, "Merge", run_merge_step, reset_merge_state, fill_merge_telemetry, COLOR_ID_BLUE, COLOR_ID_ORANGE, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE },
+    { SORT_SELECTION, "Selection", run_selection_step, reset_selection_state, fill_selection_telemetry, COLOR_ID_RED, COLOR_ID_MAGENTA, COLOR_ID_MAROON, COLOR_ID_SKYBLUE },
+    { SORT_HEAP, "Heap", run_heap_step, reset_heap_state, fill_heap_telemetry, COLOR_ID_RED, COLOR_ID_ORANGE, COLOR_ID_MAROON, COLOR_ID_SKYBLUE },
+    { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry, COLOR_ID_RED, COLOR_ID_PINK, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE }
 };
 
 #define SORT_REGISTRY_COUNT ((int)(sizeof(sortRegistry) / sizeof(sortRegistry[0])))
@@ -492,6 +510,23 @@ static const char *get_sort_name_by_mode(SortMode mode)
 static const char *get_sort_name(void)
 {
     return get_sort_name_by_mode(app.currentSort);
+}
+
+static Color color_from_id(int colorId)
+{
+    switch (colorId) {
+        case COLOR_ID_RED: return RED;
+        case COLOR_ID_ORANGE: return ORANGE;
+        case COLOR_ID_MAROON: return MAROON;
+        case COLOR_ID_SKYBLUE: return SKYBLUE;
+        case COLOR_ID_VIOLET: return VIOLET;
+        case COLOR_ID_PINK: return PINK;
+        case COLOR_ID_GOLD: return GOLD;
+        case COLOR_ID_BLUE: return BLUE;
+        case COLOR_ID_PURPLE: return PURPLE;
+        case COLOR_ID_MAGENTA: return MAGENTA;
+        default: return RED;
+    }
 }
 
 static void benchmark_begin_current_sort(void)
@@ -1003,7 +1038,16 @@ int main(){
         char telemetryLine3[96] = { 0 };
         fill_current_sort_telemetry(telemetryLine1, sizeof(telemetryLine1), telemetryLine2, sizeof(telemetryLine2), telemetryLine3, sizeof(telemetryLine3));
 
+        int currentSortIndex = get_sort_index(app.currentSort);
+        if (currentSortIndex < 0) {
+            currentSortIndex = 0;
+        }
+
         UiDrawContext ui = {
+            .sortColorA = color_from_id(sortRegistry[currentSortIndex].colorAId),
+            .sortColorB = color_from_id(sortRegistry[currentSortIndex].colorBId),
+            .sortColorC = color_from_id(sortRegistry[currentSortIndex].colorCId),
+            .sortColorD = color_from_id(sortRegistry[currentSortIndex].colorDId),
             .width = WIDTH,
             .height = HEIGHT,
             .maxSize = MAX_SIZE,

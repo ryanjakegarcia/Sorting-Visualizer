@@ -125,35 +125,35 @@ void draw_elements(const UiDrawContext *ctx)
         if (ctx->completionSweepActive && i == ctx->completionSweepIndex) {
             barColor = YELLOW;
         } else if (ctx->currentSort == SORT_QUICK && !ctx->sortingDone && i == ctx->quickPivotIndex) {
-            barColor = ORANGE;
+            barColor = ctx->sortColorC;
         } else if (ctx->currentSort == SORT_QUICK && !ctx->sortingDone && i == ctx->quickJ) {
-            barColor = RED;
+            barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_QUICK && !ctx->sortingDone && i == ctx->quickI) {
-            barColor = PINK;
+            barColor = ctx->sortColorB;
         } else if (ctx->currentSort == SORT_HEAP && !ctx->sortingDone && i == ctx->heapCandidateIndex) {
-            barColor = ORANGE;
+            barColor = ctx->sortColorB;
         } else if (ctx->currentSort == SORT_HEAP && !ctx->sortingDone && i == ctx->heapFocusIndex) {
-            barColor = RED;
+            barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_BUBBLE && !ctx->sortingDone && (i == ctx->bubbleIndex || i == ctx->bubbleIndex + 1)) {
-            barColor = RED;
+            barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_INSERTION && !ctx->sortingDone && ctx->insertionHoldingKey && i == ctx->insertionPos) {
-            barColor = ORANGE;
+            barColor = ctx->sortColorB;
         } else if (ctx->currentSort == SORT_SHELL && !ctx->sortingDone && ctx->shellHolding && i == ctx->shellJ) {
-            barColor = ORANGE;
+            barColor = ctx->sortColorB;
         } else if (ctx->currentSort == SORT_SHELL && !ctx->sortingDone && ctx->shellHolding && ctx->shellJ - ctx->shellGap >= 0 && i == ctx->shellJ - ctx->shellGap) {
-            barColor = RED;
+            barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && !ctx->mergeCopying && i == ctx->mergeI) {
-            barColor = RED;
+            barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && !ctx->mergeCopying && i == ctx->mergeJ) {
-            barColor = ORANGE;
+            barColor = ctx->sortColorB;
         } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && i == ctx->mergeK) {
-            barColor = PINK;
+            barColor = ctx->sortColorC;
         } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeCopying && i == ctx->mergeCopyIndex) {
-            barColor = SKYBLUE;
+            barColor = ctx->sortColorD;
         } else if (ctx->currentSort == SORT_SELECTION && !ctx->sortingDone && i == ctx->selectionMin) {
-            barColor = ORANGE;
+            barColor = ctx->sortColorB;
         } else if (ctx->currentSort == SORT_SELECTION && !ctx->sortingDone && i == ctx->selectionJ && ctx->selectionJ < ctx->arraySize) {
-            barColor = RED;
+            barColor = ctx->sortColorA;
         } else if (ctx->knownSorted[i] || ctx->sortingDone || (ctx->currentSort == SORT_BUBBLE && i >= ctx->arraySize - ctx->bubblePass) || (ctx->currentSort == SORT_INSERTION && i < ctx->insertionIndex) || (ctx->currentSort == SORT_SELECTION && i < ctx->selectionI) || (ctx->currentSort == SORT_HEAP && !ctx->heapBuilding && i > ctx->heapSortEnd)) {
             barColor = GREEN;
         }
@@ -253,63 +253,63 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText("Legend", legendX, legendY, 24, SKYBLUE);
 
         if (ctx->currentSort == SORT_BUBBLE) {
-            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Compare Pair", legendX + 28, legendY + 32, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 62, 18, 18, GREEN);
             DrawText("Sorted Suffix", legendX + 28, legendY + 60, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 90, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 88, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_INSERTION) {
-            DrawRectangle(legendX, legendY + 34, 18, 18, ORANGE);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorB);
             DrawText("Insert Compare", legendX + 28, legendY + 32, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 62, 18, 18, GREEN);
             DrawText("Sorted Prefix", legendX + 28, legendY + 60, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 90, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 88, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_SELECTION) {
-            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Scan Index", legendX + 28, legendY + 32, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 62, 18, 18, ORANGE);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
             DrawText("Current Min", legendX + 28, legendY + 60, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
             DrawText("Finalized Prefix", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_SHELL) {
-            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Gap Compare", legendX + 28, legendY + 32, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 62, 18, 18, ORANGE);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
             DrawText("Gap Insert Pos", legendX + 28, legendY + 60, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
             DrawText("Sorted (final)", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_MERGE) {
-            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Left Candidate", legendX + 28, legendY + 32, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 62, 18, 18, ORANGE);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
             DrawText("Right Candidate", legendX + 28, legendY + 60, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 90, 18, 18, PINK);
+            DrawRectangle(legendX, legendY + 90, 18, 18, ctx->sortColorC);
             DrawText("Merge Write", legendX + 28, legendY + 88, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 118, 18, 18, SKYBLUE);
+            DrawRectangle(legendX, legendY + 118, 18, 18, ctx->sortColorD);
             DrawText("Copy Back", legendX + 28, legendY + 116, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 146, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 144, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_HEAP) {
-            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Sift Root", legendX + 28, legendY + 32, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 62, 18, 18, ORANGE);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
             DrawText("Largest Candidate", legendX + 28, legendY + 60, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
             DrawText("Sorted Suffix", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
         } else {
-            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Scan j", legendX + 28, legendY + 32, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 62, 18, 18, PINK);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
             DrawText("Partition i", legendX + 28, legendY + 60, 20, LIGHTGRAY);
-            DrawRectangle(legendX, legendY + 90, 18, 18, ORANGE);
+            DrawRectangle(legendX, legendY + 90, 18, 18, ctx->sortColorC);
             DrawText("Pivot", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
