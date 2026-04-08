@@ -42,6 +42,10 @@ typedef struct RuntimeState {
 
     bool sortingDone;
     bool paused;
+    bool pausedBeforeMenu;
+    bool pauseMenuActive;
+    int pauseMenuSelection;
+    bool requestClose;
     bool stepMode;
     bool stepOnceRequested;
 

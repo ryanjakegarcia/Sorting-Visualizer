@@ -417,7 +417,7 @@ int main(){
 
     reset_sort_state(false);
     
-    while(!WindowShouldClose()){
+    while(!WindowShouldClose() && !app.requestClose){
         float dt = GetFrameTime();
         audio_begin_frame(&app.audio);
 
@@ -430,6 +430,10 @@ int main(){
             .sizeInputCapacity = (int)sizeof(app.sizeInput),
             .sizeInputLen = &app.sizeInputLen,
             .paused = &app.paused,
+            .pausedBeforeMenu = &app.pausedBeforeMenu,
+            .pauseMenuActive = &app.pauseMenuActive,
+            .pauseMenuSelection = &app.pauseMenuSelection,
+            .requestClose = &app.requestClose,
             .stepMode = &app.stepMode,
             .stepOnceRequested = &app.stepOnceRequested,
             .showValues = &app.showValues,
@@ -547,6 +551,8 @@ int main(){
             .statusText = app.statusText,
             .showLegend = app.showLegend,
             .paused = app.paused,
+            .pauseMenuActive = app.pauseMenuActive,
+            .pauseMenuSelection = app.pauseMenuSelection,
             .stepMode = app.stepMode,
             .minimalUiMode = app.minimalUiMode,
             .showInfo = IsKeyDown(KEY_I),

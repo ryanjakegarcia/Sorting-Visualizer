@@ -18,6 +18,41 @@ Rectangle ui_get_size_input_box(int height)
     return box;
 }
 
+static void draw_pause_menu(const UiDrawContext *ctx)
+{
+    const char *items[13] = {
+        "Resume",
+        TextFormat("HUD: %s", ctx->showHud ? "ON" : "OFF"),
+        TextFormat("Legend: %s", ctx->showLegend ? "ON" : "OFF"),
+        TextFormat("Values: %s", ctx->showValues ? "ON" : "OFF"),
+        TextFormat("Minimal UI: %s", ctx->minimalUiMode ? "ON" : "OFF"),
+        TextFormat("Compare Audio: %s", ctx->compareAudioEnabled ? "ON" : "OFF"),
+        TextFormat("Swap Audio: %s", ctx->swapAudioEnabled ? "ON" : "OFF"),
+        TextFormat("Progress Audio: %s", ctx->progressAudioEnabled ? "ON" : "OFF"),
+        TextFormat("Finish Audio: %s", ctx->finishAudioEnabled ? "ON" : "OFF"),
+        "Save Preset",
+        "Load Preset",
+        "Set Array Size",
+        "Close App"
+    };
+
+    int menuWidth = 460;
+    int menuHeight = 540;
+    int menuX = (ctx->width - menuWidth) / 2;
+    int menuY = (ctx->height - menuHeight) / 2;
+
+    DrawRectangle(0, 0, ctx->width, ctx->height, Fade(BLACK, 0.55f));
+    DrawRectangle(menuX, menuY, menuWidth, menuHeight, Fade(DARKGRAY, 0.90f));
+    DrawRectangleLinesEx((Rectangle){ (float)menuX, (float)menuY, (float)menuWidth, (float)menuHeight }, 2.0f, SKYBLUE);
+    DrawText("Pause Menu", menuX + 20, menuY + 16, 30, YELLOW);
+    DrawText("UP/DOWN + ENTER, ESC to close", menuX + 20, menuY + 52, 18, LIGHTGRAY);
+
+    for (int i = 0; i < 13; i++) {
+        Color c = (i == ctx->pauseMenuSelection) ? YELLOW : RAYWHITE;
+        DrawText(items[i], menuX + 24, menuY + 88 + i * 32, 24, c);
+    }
+}
+
 void draw_elements(const UiDrawContext *ctx)
 {
     const float availableWidth = (float)ctx->width - 2.0f * padding;
@@ -91,12 +126,18 @@ void draw_elements(const UiDrawContext *ctx)
     }
 
     if (!ctx->showHud) {
+        if (ctx->pauseMenuActive) {
+            draw_pause_menu(ctx);
+        }
         return;
     }
 
     if (ctx->minimalUiMode) {
         DrawText(TextFormat("Sort: %s", ctx->sortName), 20, 20, 30, YELLOW);
         DrawText(TextFormat("Size: %d", ctx->arraySize), 20, 56, 30, SKYBLUE);
+        if (ctx->pauseMenuActive) {
+            draw_pause_menu(ctx);
+        }
         return;
     }
 
@@ -234,5 +275,9 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
         DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 455, 20, LIGHTGRAY);
         DrawText("[ / ]: Master Volume", 20, infoY + 480, 20, LIGHTGRAY);
+    }
+
+    if (ctx->pauseMenuActive) {
+        draw_pause_menu(ctx);
     }
 }

@@ -21,6 +21,10 @@ typedef struct ControllerContext {
     int *sizeInputLen;
 
     bool *paused;
+    bool *pausedBeforeMenu;
+    bool *pauseMenuActive;
+    int *pauseMenuSelection;
+    bool *requestClose;
     bool *stepMode;
     bool *stepOnceRequested;
     bool *showValues;

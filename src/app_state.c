@@ -37,6 +37,10 @@ void app_state_init_defaults(RuntimeState *state)
 
     state->sortingDone = false;
     state->paused = false;
+    state->pausedBeforeMenu = false;
+    state->pauseMenuActive = false;
+    state->pauseMenuSelection = 0;
+    state->requestClose = false;
     state->stepMode = false;
     state->stepOnceRequested = false;
 

@@ -8,6 +8,23 @@
 
 #include "ui.h"
 
+enum {
+    MENU_RESUME = 0,
+    MENU_TOGGLE_HUD,
+    MENU_TOGGLE_LEGEND,
+    MENU_TOGGLE_VALUES,
+    MENU_TOGGLE_MINIMAL,
+    MENU_TOGGLE_COMPARE_AUDIO,
+    MENU_TOGGLE_SWAP_AUDIO,
+    MENU_TOGGLE_PROGRESS_AUDIO,
+    MENU_TOGGLE_FINISH_AUDIO,
+    MENU_SAVE_PRESET,
+    MENU_LOAD_PRESET,
+    MENU_SET_ARRAY_SIZE,
+    MENU_CLOSE_APP,
+    MENU_ITEM_COUNT
+};
+
 static int sanitize_array_size(int requested, int maxSize, bool *usedDefault)
 {
     if (requested < 2 || requested > maxSize) {
@@ -21,7 +38,19 @@ static int sanitize_array_size(int requested, int maxSize, bool *usedDefault)
 
 void controller_handle_input(ControllerContext *ctx, float dt)
 {
-    bool allowSizeBoxInteraction = *ctx->showHud && !*ctx->minimalUiMode;
+    if (IsKeyPressed(KEY_ESCAPE) && !*ctx->sizeInputActive) {
+        if (!*ctx->pauseMenuActive) {
+            *ctx->pausedBeforeMenu = *ctx->paused;
+            *ctx->paused = true;
+            *ctx->pauseMenuSelection = 0;
+            *ctx->pauseMenuActive = true;
+        } else {
+            *ctx->pauseMenuActive = false;
+            *ctx->paused = *ctx->pausedBeforeMenu;
+        }
+    }
+
+    bool allowSizeBoxInteraction = *ctx->showHud && !*ctx->minimalUiMode && !*ctx->pauseMenuActive;
     Rectangle sizeBox = ui_get_size_input_box(ctx->windowHeight);
     if (allowSizeBoxInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         Vector2 mousePos = GetMousePosition();
@@ -66,7 +95,80 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         }
     }
 
-    if (!*ctx->sizeInputActive) {
+    if (*ctx->pauseMenuActive && !*ctx->sizeInputActive) {
+        if (IsKeyPressed(KEY_UP)) {
+            (*ctx->pauseMenuSelection)--;
+            if (*ctx->pauseMenuSelection < 0) *ctx->pauseMenuSelection = MENU_ITEM_COUNT - 1;
+        }
+
+        if (IsKeyPressed(KEY_DOWN)) {
+            (*ctx->pauseMenuSelection)++;
+            if (*ctx->pauseMenuSelection >= MENU_ITEM_COUNT) *ctx->pauseMenuSelection = 0;
+        }
+
+        if (IsKeyPressed(KEY_ENTER)) {
+            switch (*ctx->pauseMenuSelection) {
+                case MENU_RESUME:
+                    *ctx->pauseMenuActive = false;
+                    *ctx->paused = *ctx->pausedBeforeMenu;
+                    break;
+                case MENU_TOGGLE_HUD:
+                    *ctx->showHud = !*ctx->showHud;
+                    if (!*ctx->showHud) *ctx->sizeInputActive = false;
+                    break;
+                case MENU_TOGGLE_LEGEND:
+                    *ctx->showLegend = !*ctx->showLegend;
+                    break;
+                case MENU_TOGGLE_VALUES:
+                    *ctx->showValues = !*ctx->showValues;
+                    break;
+                case MENU_TOGGLE_MINIMAL:
+                    *ctx->minimalUiMode = !*ctx->minimalUiMode;
+                    if (*ctx->minimalUiMode) *ctx->sizeInputActive = false;
+                    break;
+                case MENU_TOGGLE_COMPARE_AUDIO:
+                    *ctx->compareAudioEnabled = !*ctx->compareAudioEnabled;
+                    break;
+                case MENU_TOGGLE_SWAP_AUDIO:
+                    *ctx->swapAudioEnabled = !*ctx->swapAudioEnabled;
+                    break;
+                case MENU_TOGGLE_PROGRESS_AUDIO:
+                    *ctx->progressAudioEnabled = !*ctx->progressAudioEnabled;
+                    break;
+                case MENU_TOGGLE_FINISH_AUDIO:
+                    *ctx->finishAudioEnabled = !*ctx->finishAudioEnabled;
+                    break;
+                case MENU_SAVE_PRESET:
+                    if (ctx->savePreset != NULL) {
+                        ctx->savePreset(*ctx->speedMultiplier);
+                    }
+                    break;
+                case MENU_LOAD_PRESET: {
+                    bool loaded = false;
+                    if (ctx->loadPreset != NULL) {
+                        loaded = ctx->loadPreset(ctx->speedMultiplier);
+                    }
+                    if (loaded && ctx->resetSort != NULL) {
+                        ctx->resetSort();
+                        *ctx->stepTimer = 0.0f;
+                    }
+                    break;
+                }
+                case MENU_SET_ARRAY_SIZE:
+                    *ctx->sizeInputActive = true;
+                    snprintf(ctx->sizeInput, (size_t)ctx->sizeInputCapacity, "%d", *ctx->arraySize);
+                    *ctx->sizeInputLen = (int)strlen(ctx->sizeInput);
+                    break;
+                case MENU_CLOSE_APP:
+                    *ctx->requestClose = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    if (!*ctx->sizeInputActive && !*ctx->pauseMenuActive) {
         if (IsKeyPressed(KEY_SPACE)) {
             *ctx->paused = !*ctx->paused;
         }

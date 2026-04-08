@@ -69,6 +69,8 @@ typedef struct UiDrawContext {
 
     bool showLegend;
     bool paused;
+    bool pauseMenuActive;
+    int pauseMenuSelection;
     bool stepMode;
     bool minimalUiMode;
     bool showInfo;
