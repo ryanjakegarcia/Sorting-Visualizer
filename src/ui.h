@@ -71,6 +71,26 @@ typedef struct UiDrawContext {
     int combGap;
     int combIndex;
     bool combSwapped;
+    int timRunSize;
+    int timMergeWidth;
+    int timLeft;
+    int timMid;
+    int timRight;
+    int timSortIndex;
+    int timSortEnd;
+    int timMergeIndex;
+    int timI;
+    int timJ;
+    int timK;
+    bool timInsertActive;
+    bool timMergeActive;
+    int radixBit;
+    int radixPass;
+    int radixIndex;
+    int radixMaxBit;
+    int bogoAttempts;
+    int bogoCheckIndex;
+    bool bogoIsChecking;
 
     bool showValues;
     bool showHud;

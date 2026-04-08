@@ -191,4 +191,66 @@ void comb_sort_step(
     CompletionSweepFn startCompletionSweep
 );
 
+void timsort_step(
+    int *numbers,
+    int *timBuffer,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *timRunSize,
+    int *timMergeWidth,
+    int *timLeft,
+    int *timMid,
+    int *timRight,
+    int *timSortIndex,
+    int *timSortEnd,
+    int *timMergeIndex,
+    int *timI,
+    int *timJ,
+    int *timK,
+    bool *timInsertActive,
+    bool *timMergeActive,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
+void radixsort_step(
+    int *numbers,
+    int *radixBuffer,
+    int *radixCount,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *radixBit,
+    int *radixMaxBit,
+    int *radixPass,
+    int *radixIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
+void bogosort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *bogoAttempts,
+    int *bogoCheckIndex,
+    bool *bogoIsChecking,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
 #endif

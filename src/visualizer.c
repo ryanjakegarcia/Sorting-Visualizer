@@ -26,10 +26,14 @@ static RuntimeState app;
 static int quickStackLow[MAX_SIZE];
 static int quickStackHigh[MAX_SIZE];
 static int mergeBuffer[MAX_SIZE];
+static int timBuffer[MAX_SIZE];
+static int radixBuffer[MAX_SIZE];
+static int radixCount[2];
 
 static const float masterVolumeStep = 0.05f;
 static const float autoNextSortDelay = 3.0f;
 static const char *presetPath = "presets/visualizer_preset.cfg";
+static const char *benchmarkCsvPath = "benchmarks/benchmark_results.csv";
 
 typedef struct SortDescriptor {
     SortMode mode;
@@ -66,6 +70,9 @@ static void run_merge_step(void);
 static void run_cocktail_step(void);
 static void run_gnome_step(void);
 static void run_comb_step(void);
+static void run_timsort_step(void);
+static void run_radixsort_step(void);
+static void run_bogosort_step(void);
 static void reset_bubble_state(void);
 static void reset_insertion_state(void);
 static void reset_selection_state(void);
@@ -76,6 +83,9 @@ static void reset_merge_state(void);
 static void reset_cocktail_state(void);
 static void reset_gnome_state(void);
 static void reset_comb_state(void);
+static void reset_timsort_state(void);
+static void reset_radixsort_state(void);
+static void reset_bogosort_state(void);
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_insertion_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_selection_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
@@ -86,6 +96,9 @@ static void fill_merge_telemetry(char *line1, size_t line1Size, char *line2, siz
 static void fill_cocktail_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_gnome_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_comb_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_timsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_radixsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_bogosort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static Color color_from_id(int colorId);
 
@@ -99,7 +112,10 @@ static const SortDescriptor sortRegistry[] = {
     { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry, COLOR_ID_RED, COLOR_ID_PINK, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
     { SORT_COCKTAIL, "Cocktail", run_cocktail_step, reset_cocktail_state, fill_cocktail_telemetry, COLOR_ID_ORANGE, COLOR_ID_RED, COLOR_ID_SKYBLUE, COLOR_ID_MAROON },
     { SORT_GNOME, "Gnome", run_gnome_step, reset_gnome_state, fill_gnome_telemetry, COLOR_ID_VIOLET, COLOR_ID_PINK, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
-    { SORT_COMB, "Comb", run_comb_step, reset_comb_state, fill_comb_telemetry, COLOR_ID_BLUE, COLOR_ID_GOLD, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE }
+    { SORT_COMB, "Comb", run_comb_step, reset_comb_state, fill_comb_telemetry, COLOR_ID_BLUE, COLOR_ID_GOLD, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE },
+    { SORT_TIMSORT, "Timsort", run_timsort_step, reset_timsort_state, fill_timsort_telemetry, COLOR_ID_MAGENTA, COLOR_ID_PINK, COLOR_ID_RED, COLOR_ID_SKYBLUE },
+    { SORT_RADIXSORT, "Radixsort", run_radixsort_step, reset_radixsort_state, fill_radixsort_telemetry, COLOR_ID_GOLD, COLOR_ID_MAROON, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
+    { SORT_BOGOSORT, "Bogosort", run_bogosort_step, reset_bogosort_state, fill_bogosort_telemetry, COLOR_ID_PINK, COLOR_ID_MAGENTA, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE }
 };
 
 #define SORT_REGISTRY_COUNT ((int)(sizeof(sortRegistry) / sizeof(sortRegistry[0])))
@@ -149,6 +165,8 @@ static void benchmark_cancel(void);
 static void benchmark_update(void);
 static void benchmark_prepare_run_baseline(void);
 static int benchmark_build_sequence(void);
+static bool benchmark_export_results_csv(void);
+static void benchmark_build_display_order(int *order, int count);
 static void draw_benchmark_overlay(void);
 
 static void set_status_text(const char *text)
@@ -596,6 +614,90 @@ static int benchmark_build_sequence(void)
     return count;
 }
 
+static int benchmark_compare_display_order(const void *leftPtr, const void *rightPtr)
+{
+    int leftIndex = *(const int *)leftPtr;
+    int rightIndex = *(const int *)rightPtr;
+
+    const BenchmarkResult *left = &benchmark.results[leftIndex];
+    const BenchmarkResult *right = &benchmark.results[rightIndex];
+    bool leftHasRuns = left->runs > 0;
+    bool rightHasRuns = right->runs > 0;
+
+    if (leftHasRuns != rightHasRuns) {
+        return leftHasRuns ? -1 : 1;
+    }
+
+    if (leftHasRuns && rightHasRuns) {
+        float leftAvg = left->totalElapsed / (float)left->runs;
+        float rightAvg = right->totalElapsed / (float)right->runs;
+
+        if (leftAvg < rightAvg) return -1;
+        if (leftAvg > rightAvg) return 1;
+    }
+
+    if (leftIndex < rightIndex) return -1;
+    if (leftIndex > rightIndex) return 1;
+    return 0;
+}
+
+static void benchmark_build_display_order(int *order, int count)
+{
+    if (count < 1) {
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        order[i] = i;
+    }
+
+    qsort(order, (size_t)count, sizeof(int), benchmark_compare_display_order);
+}
+
+static bool benchmark_export_results_csv(void)
+{
+    FILE *file = fopen(benchmarkCsvPath, "w");
+    if (file == NULL) {
+        set_status_text("Benchmark CSV export failed");
+        return false;
+    }
+
+    int order[MAX_BENCHMARK_RESULTS] = { 0 };
+    benchmark_build_display_order(order, benchmark.resultCount);
+
+    fprintf(file, "rank,sort,enabled,runs,total_elapsed,avg_elapsed,min_elapsed,max_elapsed,total_comparisons,avg_comparisons,total_swaps,avg_swaps,total_steps,avg_steps\n");
+    for (int rank = 0; rank < benchmark.resultCount; rank++) {
+        int resultIndex = order[rank];
+        const BenchmarkResult *result = &benchmark.results[resultIndex];
+        bool enabled = benchmark.sortEnabled[resultIndex];
+        float avgElapsed = (result->runs > 0) ? (result->totalElapsed / (float)result->runs) : 0.0f;
+        float minElapsed = (result->runs > 0) ? result->minElapsed : 0.0f;
+        float maxElapsed = (result->runs > 0) ? result->maxElapsed : 0.0f;
+        unsigned long long avgComparisons = (result->runs > 0) ? (result->totalComparisons / (unsigned long long)result->runs) : 0ULL;
+        unsigned long long avgSwaps = (result->runs > 0) ? (result->totalSwaps / (unsigned long long)result->runs) : 0ULL;
+        unsigned long long avgSteps = (result->runs > 0) ? (result->totalSteps / (unsigned long long)result->runs) : 0ULL;
+        fprintf(file, "%d,%s,%d,%d,%.6f,%.6f,%.6f,%.6f,%llu,%llu,%llu,%llu,%llu,%llu\n",
+            rank + 1,
+            sortRegistry[resultIndex].name,
+            enabled ? 1 : 0,
+            result->runs,
+            result->totalElapsed,
+            avgElapsed,
+            minElapsed,
+            maxElapsed,
+            result->totalComparisons,
+            avgComparisons,
+            result->totalSwaps,
+            avgSwaps,
+            result->totalSteps,
+            avgSteps);
+    }
+
+    fclose(file);
+    set_status_text(TextFormat("Benchmark CSV saved to %s", benchmarkCsvPath));
+    return true;
+}
+
 static void benchmark_prepare_run_baseline(void)
 {
     if (benchmark.configUseFixedSeed) {
@@ -756,6 +858,7 @@ static void draw_benchmark_overlay(void)
     Rectangle fixedSeedButton = { (float)(panelX + 330), (float)buttonY, 96.0f, 24.0f };
     Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
     Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
+    Rectangle exportButton = { (float)(panelX + 16), (float)(buttonY + 34), 132.0f, 24.0f };
 
     Vector2 mousePos = GetMousePosition();
     bool hoverRunsMinus = CheckCollisionPointRec(mousePos, runsMinusButton);
@@ -765,8 +868,9 @@ static void draw_benchmark_overlay(void)
     bool hoverFixedSeed = CheckCollisionPointRec(mousePos, fixedSeedButton);
     bool hoverWarmup = CheckCollisionPointRec(mousePos, warmupButton);
     bool hoverStart = CheckCollisionPointRec(mousePos, startButton);
+    bool hoverExport = CheckCollisionPointRec(mousePos, exportButton);
 
-    if (hoverRunsMinus || hoverRunsPlus || hoverSeedMinus || hoverSeedPlus || hoverFixedSeed || hoverWarmup || hoverStart) {
+    if (hoverRunsMinus || hoverRunsPlus || hoverSeedMinus || hoverSeedPlus || hoverFixedSeed || hoverWarmup || hoverStart || hoverExport) {
         SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     }
 
@@ -777,6 +881,7 @@ static void draw_benchmark_overlay(void)
     DrawRectangleRec(fixedSeedButton, Fade(benchmark.configUseFixedSeed ? DARKGREEN : DARKGRAY, hoverFixedSeed ? 0.95f : 0.8f));
     DrawRectangleRec(warmupButton, Fade(benchmark.configWarmup ? DARKGREEN : DARKGRAY, hoverWarmup ? 0.95f : 0.8f));
     DrawRectangleRec(startButton, Fade(benchmark.running ? DARKGRAY : DARKBLUE, hoverStart ? 1.0f : 0.85f));
+    DrawRectangleRec(exportButton, Fade(benchmark.running ? DARKGRAY : DARKPURPLE, hoverExport ? 1.0f : 0.85f));
 
     DrawRectangleLinesEx(runsMinusButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(runsPlusButton, 1.0f, LIGHTGRAY);
@@ -785,6 +890,7 @@ static void draw_benchmark_overlay(void)
     DrawRectangleLinesEx(fixedSeedButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(warmupButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(startButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(exportButton, 1.0f, LIGHTGRAY);
 
     DrawText("-", (int)runsMinusButton.x + 8, (int)runsMinusButton.y + 2, 20, RAYWHITE);
     DrawText("+", (int)runsPlusButton.x + 7, (int)runsPlusButton.y + 1, 20, RAYWHITE);
@@ -793,6 +899,7 @@ static void draw_benchmark_overlay(void)
     DrawText("Fixed Seed", (int)fixedSeedButton.x + 8, (int)fixedSeedButton.y + 4, 16, RAYWHITE);
     DrawText("Warmup", (int)warmupButton.x + 18, (int)warmupButton.y + 4, 16, RAYWHITE);
     DrawText("Start", (int)startButton.x + 34, (int)startButton.y + 4, 16, RAYWHITE);
+    DrawText("Export CSV", (int)exportButton.x + 14, (int)exportButton.y + 4, 16, RAYWHITE);
 
     int statusY = buttonY + 30;
 
@@ -832,9 +939,13 @@ static void draw_benchmark_overlay(void)
         rowsToDraw = maxRows;
     }
 
+    int displayOrder[MAX_BENCHMARK_RESULTS] = { 0 };
+    benchmark_build_display_order(displayOrder, benchmark.resultCount);
+
     for (int i = 0; i < rowsToDraw; i++) {
-        const BenchmarkResult *result = &benchmark.results[i];
-        bool enabled = benchmark.sortEnabled[i];
+        int resultIndex = displayOrder[i];
+        const BenchmarkResult *result = &benchmark.results[resultIndex];
+        bool enabled = benchmark.sortEnabled[resultIndex];
         bool selected = (!benchmark.running && benchmark.active && i == benchmark.selectedConfigSortIndex);
         Rectangle rowRect = { (float)(panelX + 10), (float)(rowY + i * 24 - 2), (float)(panelW - 20), 24.0f };
         bool hoveredRow = CheckCollisionPointRec(mousePos, rowRect);
@@ -852,7 +963,7 @@ static void draw_benchmark_overlay(void)
         } else if (hoveredRow) {
             DrawRectangle(panelX + 10, rowY + i * 24 - 2, panelW - 20, 24, Fade(SKYBLUE, 0.15f));
         }
-        DrawText(TextFormat("[%c] %s", enabled ? 'x' : ' ', sortRegistry[i].name), panelX + 16, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("[%c] %s", enabled ? 'x' : ' ', sortRegistry[resultIndex].name), panelX + 16, rowY + i * 24, 20, rowColor);
         DrawText(TextFormat("%.3f", avg), panelX + 150, rowY + i * 24, 20, rowColor);
         DrawText(TextFormat("%.3f", min), panelX + 235, rowY + i * 24, 20, rowColor);
         DrawText(TextFormat("%.3f", max), panelX + 320, rowY + i * 24, 20, rowColor);
@@ -995,6 +1106,85 @@ static void fill_comb_telemetry(char *line1, size_t line1Size, char *line2, size
     snprintf(line1, line1Size, "Gap: %d  Index: %d", app.combGap, app.combIndex);
     snprintf(line2, line2Size, "Compare pair: [%d, %d]", app.combIndex, app.combIndex + app.combGap);
     snprintf(line3, line3Size, "Swapped this pass: %s", app.combSwapped ? "yes" : "no");
+}
+
+static void run_timsort_step(void)
+{
+    timsort_step(numbers, timBuffer, knownSorted, app.arraySize, &app.sortingDone, &app.timRunSize, &app.timMergeWidth, &app.timLeft, &app.timMid, &app.timRight, &app.timSortIndex, &app.timSortEnd, &app.timMergeIndex, &app.timI, &app.timJ, &app.timK, &app.timInsertActive, &app.timMergeActive, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_radixsort_step(void)
+{
+    radixsort_step(numbers, radixBuffer, radixCount, knownSorted, app.arraySize, &app.sortingDone, &app.radixBit, &app.radixMaxBit, &app.radixPass, &app.radixIndex, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void reset_timsort_state(void)
+{
+    app.timRunSize = 32;
+    app.timMergeWidth = 1;
+    app.timLeft = 0;
+    app.timMid = 0;
+    app.timRight = 0;
+    app.timSortIndex = 0;
+    app.timSortEnd = 32;
+    app.timMergeIndex = 0;
+    app.timI = 0;
+    app.timJ = 0;
+    app.timK = 0;
+    app.timInsertActive = true;
+    app.timMergeActive = false;
+}
+
+static void reset_radixsort_state(void)
+{
+    app.radixBit = 0;
+    app.radixPass = 0;
+    app.radixIndex = 0;
+    app.radixMaxBit = 0;
+}
+
+static void fill_timsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    if (app.timInsertActive) {
+        snprintf(line1, line1Size, "Phase: INSERTION  Run size: %d", app.timRunSize);
+        snprintf(line2, line2Size, "Sorting run ending at: %d", app.timSortEnd);
+        snprintf(line3, line3Size, "Index: %d", app.timSortIndex);
+    } else {
+        snprintf(line1, line1Size, "Phase: MERGE  Width: %d", app.timMergeWidth);
+        snprintf(line2, line2Size, "Merge range: [%d, %d)", app.timLeft, app.timRight);
+        if (line3Size > 0) line3[0] = '\0';
+    }
+}
+
+static void fill_radixsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Bit position: %d / %d", app.radixBit, app.radixMaxBit);
+    snprintf(line2, line2Size, "Pass: %d  (0=count, 1=distribute)", app.radixPass);
+    snprintf(line3, line3Size, "Zeros: %d  Ones: %d", radixCount[0], radixCount[1]);
+}
+
+static void run_bogosort_step(void)
+{
+    bogosort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.bogoAttempts, &app.bogoCheckIndex, &app.bogoIsChecking, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void reset_bogosort_state(void)
+{
+    app.bogoAttempts = 0;
+    app.bogoCheckIndex = 0;
+    app.bogoIsChecking = false;
+}
+
+static void fill_bogosort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    int bogoSize = (app.arraySize < 10) ? app.arraySize : 10;
+    snprintf(line1, line1Size, "Bogo attempts: %d", app.bogoAttempts);
+    snprintf(line2, line2Size, "Sorting up to: %d elements", bogoSize);
+    if (app.bogoIsChecking) {
+        snprintf(line3, line3Size, "Checking: index %d / %d", app.bogoCheckIndex, bogoSize - 1);
+    } else {
+        snprintf(line3, line3Size, "Shuffling...");
+    }
 }
 
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
@@ -1152,6 +1342,7 @@ int main(){
                 Rectangle fixedSeedButton = { (float)(panelX + 330), (float)buttonY, 96.0f, 24.0f };
                 Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
                 Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
+                Rectangle exportButton = { (float)(panelX + 16), (float)(buttonY + 34), 132.0f, 24.0f };
 
                 int tableY = panelY + 182;
                 int rowY = tableY + 28;
@@ -1159,6 +1350,9 @@ int main(){
                 if (maxRows < 1) maxRows = 1;
                 int rowsToDraw = benchmark.resultCount;
                 if (rowsToDraw > maxRows) rowsToDraw = maxRows;
+
+                int displayOrder[MAX_BENCHMARK_RESULTS] = { 0 };
+                benchmark_build_display_order(displayOrder, benchmark.resultCount);
 
                 Vector2 mousePos = GetMousePosition();
                 bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
@@ -1197,6 +1391,9 @@ int main(){
                         benchmark_start();
                         stepTimer = 0.0f;
                         consumedClick = true;
+                    } else if (!benchmark.running && CheckCollisionPointRec(mousePos, exportButton)) {
+                        benchmark_export_results_csv();
+                        consumedClick = true;
                     }
                 }
 
@@ -1216,7 +1413,7 @@ int main(){
                 if (!consumedClick && hoveredRow >= 0 && mouseClick) {
                     benchmark.selectedConfigSortIndex = hoveredRow;
                     if (mousePos.x <= (float)(panelX + 48)) {
-                        int idx = hoveredRow;
+                        int idx = displayOrder[hoveredRow];
                         benchmark.sortEnabled[idx] = !benchmark.sortEnabled[idx];
                         benchmark_build_sequence();
                         set_status_text(TextFormat("Benchmark subset: %d selected", benchmark.sequenceCount));
@@ -1238,7 +1435,7 @@ int main(){
                 }
 
                 if (IsKeyPressed(KEY_SEMICOLON)) {
-                    int idx = benchmark.selectedConfigSortIndex;
+                    int idx = displayOrder[benchmark.selectedConfigSortIndex];
                     if (idx >= 0 && idx < SORT_REGISTRY_COUNT) {
                         benchmark.sortEnabled[idx] = !benchmark.sortEnabled[idx];
                         benchmark_build_sequence();
@@ -1249,6 +1446,10 @@ int main(){
                 if (IsKeyPressed(KEY_ENTER)) {
                     benchmark_start();
                     stepTimer = 0.0f;
+                }
+
+                if (!benchmark.running && IsKeyPressed(KEY_E)) {
+                    benchmark_export_results_csv();
                 }
             }
         }
@@ -1403,6 +1604,26 @@ int main(){
             .combGap = app.combGap,
             .combIndex = app.combIndex,
             .combSwapped = app.combSwapped,
+            .timRunSize = app.timRunSize,
+            .timMergeWidth = app.timMergeWidth,
+            .timLeft = app.timLeft,
+            .timMid = app.timMid,
+            .timRight = app.timRight,
+            .timSortIndex = app.timSortIndex,
+            .timSortEnd = app.timSortEnd,
+            .timMergeIndex = app.timMergeIndex,
+            .timI = app.timI,
+            .timJ = app.timJ,
+            .timK = app.timK,
+            .timInsertActive = app.timInsertActive,
+            .timMergeActive = app.timMergeActive,
+            .radixBit = app.radixBit,
+            .radixPass = app.radixPass,
+            .radixIndex = app.radixIndex,
+            .radixMaxBit = app.radixMaxBit,
+            .bogoAttempts = app.bogoAttempts,
+            .bogoCheckIndex = app.bogoCheckIndex,
+            .bogoIsChecking = app.bogoIsChecking,
             .showValues = app.showValues,
             .showHud = app.showHud,
             .showSettingsOverlay = app.showSettingsOverlay,

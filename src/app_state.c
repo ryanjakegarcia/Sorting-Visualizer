@@ -58,6 +58,26 @@ void app_state_init_defaults(RuntimeState *state)
     state->combGap = 0;
     state->combIndex = 0;
     state->combSwapped = false;
+    state->timRunSize = 32;
+    state->timMergeWidth = 1;
+    state->timLeft = 0;
+    state->timMid = 0;
+    state->timRight = 0;
+    state->timSortIndex = 0;
+    state->timSortEnd = 32;
+    state->timMergeIndex = 0;
+    state->timI = 0;
+    state->timJ = 0;
+    state->timK = 0;
+    state->timInsertActive = true;
+    state->timMergeActive = false;
+    state->radixBit = 0;
+    state->radixPass = 0;
+    state->radixIndex = 0;
+    state->radixMaxBit = 0;
+    state->bogoAttempts = 0;
+    state->bogoCheckIndex = 0;
+    state->bogoIsChecking = false;
 
     state->sortingDone = false;
     state->paused = false;

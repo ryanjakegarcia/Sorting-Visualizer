@@ -11,7 +11,10 @@ typedef enum SortMode {
     SORT_MERGE,
     SORT_COCKTAIL,
     SORT_GNOME,
-    SORT_COMB
+    SORT_COMB,
+    SORT_TIMSORT,
+    SORT_RADIXSORT,
+    SORT_BOGOSORT
 } SortMode;
 
 typedef enum DistributionMode {

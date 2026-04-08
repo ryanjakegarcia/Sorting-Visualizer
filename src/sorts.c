@@ -1,4 +1,5 @@
 #include "sorts.h"
+#include <stdlib.h>
 
 static void mark_all_sorted(bool *knownSorted, int arraySize)
 {
@@ -877,4 +878,325 @@ void comb_sort_step(
     }
 
     (*combIndex)++;
+}
+
+void timsort_step(
+    int *numbers,
+    int *timBuffer,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *timRunSize,
+    int *timMergeWidth,
+    int *timLeft,
+    int *timMid,
+    int *timRight,
+    int *timSortIndex,
+    int *timSortEnd,
+    int *timMergeIndex,
+    int *timI,
+    int *timJ,
+    int *timK,
+    bool *timInsertActive,
+    bool *timMergeActive,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    (void)timSortEnd;  // Currently unused but kept for API consistency
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    // Phase 1: Insertion sort on runs
+    if (*timInsertActive) {
+        if (*timSortIndex >= arraySize) {
+            *timInsertActive = false;
+            *timMergeActive = true;
+            *timMergeWidth = *timRunSize;
+            *timMergeIndex = 0;
+            playSortedSound();
+            return;
+        }
+
+        int runEnd = (*timSortIndex + *timRunSize <= arraySize) ? *timSortIndex + *timRunSize : arraySize;
+        
+        for (int i = *timSortIndex; i < runEnd; i++) {
+            int key = numbers[i];
+            int j = i - 1;
+            
+            while (j >= *timSortIndex) {
+                (*statComparisons)++;
+                playCompareSound(numbers[j], key, j, i);
+                
+                if (numbers[j] > key) {
+                    numbers[j + 1] = numbers[j];
+                    (*statSwaps)++;
+                    playSwapSound(numbers[j], key, j, j + 1);
+                    j--;
+                } else {
+                    break;
+                }
+            }
+            
+            if (j + 1 != i) {
+                numbers[j + 1] = key;
+                (*statSwaps)++;
+            }
+        }
+        
+        *timSortIndex += *timRunSize;
+        return;
+    }
+
+    // Phase 2: Merge sorted runs
+    if (*timMergeActive) {
+        if (*timMergeIndex >= arraySize) {
+            if (*timMergeWidth >= arraySize) {
+                *sortingDone = true;
+                mark_all_sorted(knownSorted, arraySize);
+                startCompletionSweep();
+                return;
+            }
+            
+            *timMergeWidth *= 2;
+            *timMergeIndex = 0;
+            playSortedSound();
+            return;
+        }
+
+        *timLeft = *timMergeIndex;
+        *timMid = *timLeft + *timMergeWidth;
+        if (*timMid > arraySize) *timMid = arraySize;
+        *timRight = *timMid + *timMergeWidth;
+        if (*timRight > arraySize) *timRight = arraySize;
+
+        if (*timMid >= arraySize) {
+            *timMergeIndex += *timMergeWidth * 2;
+            return;
+        }
+
+        // Merge two runs: [left, mid) and [mid, right)
+        *timI = *timLeft;
+        *timJ = *timMid;
+        *timK = 0;
+
+        while (*timI < *timMid && *timJ < *timRight) {
+            (*statComparisons)++;
+            playCompareSound(numbers[*timI], numbers[*timJ], *timI, *timJ);
+            
+            if (numbers[*timI] <= numbers[*timJ]) {
+                timBuffer[(*timK)++] = numbers[(*timI)++];
+            } else {
+                timBuffer[(*timK)++] = numbers[(*timJ)++];
+            }
+        }
+
+        while (*timI < *timMid) {
+            timBuffer[(*timK)++] = numbers[(*timI)++];
+        }
+
+        while (*timJ < *timRight) {
+            timBuffer[(*timK)++] = numbers[(*timJ)++];
+        }
+
+        for (int i = 0; i < *timK; i++) {
+            numbers[*timLeft + i] = timBuffer[i];
+            (*statSwaps)++;
+        }
+
+        *timMergeIndex += *timMergeWidth * 2;
+    }
+}
+
+void radixsort_step(
+    int *numbers,
+    int *radixBuffer,
+    int *radixCount,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *radixBit,
+    int *radixMaxBit,
+    int *radixPass,
+    int *radixIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    // Calculate max bits needed on first call
+    if (*radixMaxBit == 0 && *radixBit == 0) {
+        int maxValue = 0;
+        for (int i = 0; i < arraySize; i++) {
+            if (numbers[i] > maxValue) {
+                maxValue = numbers[i];
+            }
+        }
+        
+        // Find highest bit position needed
+        int bitsNeeded = 0;
+        for (int i = 0; i < 31; i++) {
+            if ((maxValue >> i) & 1) {
+                bitsNeeded = i + 1;
+            }
+        }
+        *radixMaxBit = (bitsNeeded > 0) ? bitsNeeded : 1;
+    }
+
+    // Process one bit position at a time, only up to maxBit
+    if (*radixBit >= *radixMaxBit) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    // Count elements with bit 0 and bit 1 at position radixBit
+    if (*radixPass == 0) {
+        radixCount[0] = 0;
+        radixCount[1] = 0;
+
+        for (int i = 0; i < arraySize; i++) {
+            int bit = (numbers[i] >> *radixBit) & 1;
+            radixCount[bit]++;
+            (*statComparisons)++;
+            playCompareSound(numbers[i], bit, i, *radixBit);
+        }
+
+        *radixPass = 1;
+        *radixIndex = 0;
+        return;
+    }
+
+    // Distribute elements into buffer based on bit
+    if (*radixPass == 1) {
+        int zeros = 0;
+        int ones = radixCount[0];
+
+        for (int i = 0; i < arraySize; i++) {
+            int bit = (numbers[i] >> *radixBit) & 1;
+            
+            if (bit == 0) {
+                radixBuffer[zeros++] = numbers[i];
+            } else {
+                radixBuffer[ones++] = numbers[i];
+            }
+            
+            (*statSwaps)++;
+            playSwapSound(numbers[i], bit, i, ones);
+        }
+
+        for (int i = 0; i < arraySize; i++) {
+            numbers[i] = radixBuffer[i];
+        }
+
+        *radixBit += 1;
+        *radixPass = 0;
+        playSortedSound();
+        return;
+    }
+}
+
+static int random_range(int min, int max)
+{
+    if (max <= min) return min;
+    return min + (rand() % (max - min + 1));
+}
+
+void bogosort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *bogoAttempts,
+    int *bogoCheckIndex,
+    bool *bogoIsChecking,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    int bogoSize = (arraySize < 10) ? arraySize : 10;
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    // Phase 1: Check if first bogoSize elements are sorted
+    if (!*bogoIsChecking) {
+        *bogoCheckIndex = 0;
+        *bogoIsChecking = true;
+        (*bogoAttempts)++;
+        playSortedSound();
+        return;
+    }
+
+    // Check one comparison per step
+    if (*bogoCheckIndex < bogoSize - 1) {
+        (*statComparisons)++;
+        playCompareSound(numbers[*bogoCheckIndex], numbers[*bogoCheckIndex + 1], *bogoCheckIndex, *bogoCheckIndex + 1);
+
+        if (numbers[*bogoCheckIndex] > numbers[*bogoCheckIndex + 1]) {
+            // Not sorted, need to shuffle
+            *bogoIsChecking = false;
+            *bogoCheckIndex = 0;
+            
+            // Fisher-Yates shuffle on first bogoSize elements
+            for (int i = bogoSize - 1; i > 0; i--) {
+                int j = random_range(0, i);
+                int temp = numbers[i];
+                numbers[i] = numbers[j];
+                numbers[j] = temp;
+                (*statSwaps)++;
+                playSwapSound(temp, numbers[i], i, j);
+            }
+            
+            return;
+        }
+
+        (*bogoCheckIndex)++;
+        return;
+    }
+
+    // If we get here, first bogoSize elements are sorted!
+    // Mark all as sorted and finish
+    *sortingDone = true;
+    mark_all_sorted(knownSorted, arraySize);
+    startCompletionSweep();
 }

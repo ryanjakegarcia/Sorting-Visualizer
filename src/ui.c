@@ -205,6 +205,18 @@ void draw_elements(const UiDrawContext *ctx)
             barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_COMB && !ctx->sortingDone && i == ctx->combIndex + ctx->combGap) {
             barColor = ctx->sortColorB;
+        } else if (ctx->currentSort == SORT_TIMSORT && !ctx->sortingDone && ctx->timInsertActive && i >= ctx->timSortIndex - ctx->timRunSize && i < ctx->timSortIndex) {
+            barColor = ctx->sortColorA;
+        } else if (ctx->currentSort == SORT_TIMSORT && !ctx->sortingDone && ctx->timMergeActive && i >= ctx->timLeft && i < ctx->timRight) {
+            if (i < ctx->timMid) barColor = ctx->sortColorA;
+            else barColor = ctx->sortColorB;
+        } else if (ctx->currentSort == SORT_RADIXSORT && !ctx->sortingDone && i < ctx->radixIndex) {
+            barColor = ctx->sortColorA;
+        } else if (ctx->currentSort == SORT_BOGOSORT && !ctx->sortingDone) {
+            int bogoSize = (ctx->arraySize < 10) ? ctx->arraySize : 10;
+            if (i < bogoSize) {
+                barColor = ctx->sortColorA;  // Highlight the range being sorted
+            }
         } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && !ctx->mergeCopying && i == ctx->mergeI) {
             barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && !ctx->mergeCopying && i == ctx->mergeJ) {
@@ -385,6 +397,33 @@ void draw_elements(const UiDrawContext *ctx)
             DrawText("Sorted Final", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_TIMSORT) {
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
+            DrawText("Current Run", legendX + 28, legendY + 32, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
+            DrawText("Merge Area", legendX + 28, legendY + 60, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
+            DrawText("Sorted Runs", legendX + 28, legendY + 88, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
+            DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_RADIXSORT) {
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
+            DrawText("Processed", legendX + 28, legendY + 32, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
+            DrawText("Current Bit", legendX + 28, legendY + 60, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
+            DrawText("Sorted by Bit", legendX + 28, legendY + 88, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
+            DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_BOGOSORT) {
+            DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
+            DrawText("Bogo Range (max 10)", legendX + 28, legendY + 32, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ctx->sortColorB);
+            DrawText("During Shuffle", legendX + 28, legendY + 60, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
+            DrawText("Checking Order", legendX + 28, legendY + 88, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
+            DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_MERGE) {
             DrawRectangle(legendX, legendY + 34, 18, 18, ctx->sortColorA);
             DrawText("Left Candidate", legendX + 28, legendY + 32, 20, LIGHTGRAY);
@@ -462,7 +501,7 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 530, 20, LIGHTGRAY);
         DrawText("[ / ]: Master Volume", 20, infoY + 555, 20, LIGHTGRAY);
         DrawText("X: Benchmark Suite", 20, infoY + 580, 20, LIGHTGRAY);
-        DrawText("Benchmark cfg: Z seed on/off, W warmup, -/+ runs, ,/. seed", 20, infoY + 605, 20, LIGHTGRAY);
+        DrawText("Benchmark cfg: Z seed on/off, W warmup, -/+ runs, ,/. seed, E export CSV", 20, infoY + 605, 20, LIGHTGRAY);
     }
 
     if (ctx->pauseMenuActive) {
