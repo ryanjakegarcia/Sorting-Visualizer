@@ -11,6 +11,7 @@
 enum {
     MENU_RESUME = 0,
     MENU_TOGGLE_HUD,
+    MENU_TOGGLE_SETTINGS_OVERLAY,
     MENU_TOGGLE_LEGEND,
     MENU_TOGGLE_VALUES,
     MENU_TOGGLE_TELEMETRY,
@@ -115,6 +116,9 @@ void controller_handle_input(ControllerContext *ctx, float dt)
                     *ctx->showHud = !*ctx->showHud;
                     if (!*ctx->showHud) *ctx->sizeInputActive = false;
                     break;
+                case MENU_TOGGLE_SETTINGS_OVERLAY:
+                    *ctx->showSettingsOverlay = !*ctx->showSettingsOverlay;
+                    break;
                 case MENU_TOGGLE_LEGEND:
                     *ctx->showLegend = !*ctx->showLegend;
                     break;
@@ -157,6 +161,8 @@ void controller_handle_input(ControllerContext *ctx, float dt)
                     if (loaded && ctx->resetSort != NULL) {
                         ctx->resetSort();
                         *ctx->stepTimer = 0.0f;
+                        *ctx->pauseMenuActive = false;
+                        *ctx->paused = *ctx->pausedBeforeMenu;
                     }
                     break;
                 }
@@ -194,6 +200,10 @@ void controller_handle_input(ControllerContext *ctx, float dt)
 
         if (IsKeyPressed(KEY_H)) {
             *ctx->showHud = !*ctx->showHud;
+        }
+
+        if (IsKeyPressed(KEY_G)) {
+            *ctx->showSettingsOverlay = !*ctx->showSettingsOverlay;
         }
 
         if (IsKeyPressed(KEY_T)) {

@@ -1,5 +1,6 @@
 #include "ui.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 static const float padding = 20.0f;
@@ -20,28 +21,17 @@ Rectangle ui_get_size_input_box(int height)
 
 static void draw_pause_menu(const UiDrawContext *ctx)
 {
-    const char *items[15] = {
-        "Resume",
-        TextFormat("HUD: %s", ctx->showHud ? "ON" : "OFF"),
-        TextFormat("Legend: %s", ctx->showLegend ? "ON" : "OFF"),
-        TextFormat("Values: %s", ctx->showValues ? "ON" : "OFF"),
-        TextFormat("Telemetry: %s", ctx->showTelemetry ? "ON" : "OFF"),
-        TextFormat("Size Input Box: %s", ctx->showSizeInputBox ? "ON" : "OFF"),
-        TextFormat("Minimal UI: %s", ctx->minimalUiMode ? "ON" : "OFF"),
-        TextFormat("Compare Audio: %s", ctx->compareAudioEnabled ? "ON" : "OFF"),
-        TextFormat("Swap Audio: %s", ctx->swapAudioEnabled ? "ON" : "OFF"),
-        TextFormat("Progress Audio: %s", ctx->progressAudioEnabled ? "ON" : "OFF"),
-        TextFormat("Finish Audio: %s", ctx->finishAudioEnabled ? "ON" : "OFF"),
-        "Save Preset",
-        "Load Preset",
-        "Set Array Size",
-        "Close App"
-    };
+    const int itemCount = 16;
+    const int itemLineHeight = 30;
+    const int itemFontSize = 22;
 
     int menuWidth = 460;
-    int menuHeight = 610;
+    int menuHeight = 96 + itemCount * itemLineHeight;
     int menuX = (ctx->width - menuWidth) / 2;
     int menuY = (ctx->height - menuHeight) / 2;
+    if (menuY < 20) {
+        menuY = 20;
+    }
 
     DrawRectangle(0, 0, ctx->width, ctx->height, Fade(BLACK, 0.55f));
     DrawRectangle(menuX, menuY, menuWidth, menuHeight, Fade(DARKGRAY, 0.90f));
@@ -49,9 +39,65 @@ static void draw_pause_menu(const UiDrawContext *ctx)
     DrawText("Pause Menu", menuX + 20, menuY + 16, 30, YELLOW);
     DrawText("UP/DOWN + ENTER, SPACE to close", menuX + 20, menuY + 52, 18, LIGHTGRAY);
 
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < itemCount; i++) {
+        char itemText[96] = { 0 };
         Color c = (i == ctx->pauseMenuSelection) ? YELLOW : RAYWHITE;
-        DrawText(items[i], menuX + 24, menuY + 88 + i * 32, 24, c);
+
+        switch (i) {
+            case 0:
+                snprintf(itemText, sizeof(itemText), "Resume");
+                break;
+            case 1:
+                snprintf(itemText, sizeof(itemText), "HUD: %s", ctx->showHud ? "ON" : "OFF");
+                break;
+            case 2:
+                snprintf(itemText, sizeof(itemText), "Settings Overlay: %s", ctx->showSettingsOverlay ? "ON" : "OFF");
+                break;
+            case 3:
+                snprintf(itemText, sizeof(itemText), "Legend: %s", ctx->showLegend ? "ON" : "OFF");
+                break;
+            case 4:
+                snprintf(itemText, sizeof(itemText), "Values: %s", ctx->showValues ? "ON" : "OFF");
+                break;
+            case 5:
+                snprintf(itemText, sizeof(itemText), "Telemetry: %s", ctx->showTelemetry ? "ON" : "OFF");
+                break;
+            case 6:
+                snprintf(itemText, sizeof(itemText), "Size Input Box: %s", ctx->showSizeInputBox ? "ON" : "OFF");
+                break;
+            case 7:
+                snprintf(itemText, sizeof(itemText), "Minimal UI: %s", ctx->minimalUiMode ? "ON" : "OFF");
+                break;
+            case 8:
+                snprintf(itemText, sizeof(itemText), "Compare Audio: %s", ctx->compareAudioEnabled ? "ON" : "OFF");
+                break;
+            case 9:
+                snprintf(itemText, sizeof(itemText), "Swap Audio: %s", ctx->swapAudioEnabled ? "ON" : "OFF");
+                break;
+            case 10:
+                snprintf(itemText, sizeof(itemText), "Progress Audio: %s", ctx->progressAudioEnabled ? "ON" : "OFF");
+                break;
+            case 11:
+                snprintf(itemText, sizeof(itemText), "Finish Audio: %s", ctx->finishAudioEnabled ? "ON" : "OFF");
+                break;
+            case 12:
+                snprintf(itemText, sizeof(itemText), "Save Preset");
+                break;
+            case 13:
+                snprintf(itemText, sizeof(itemText), "Load Preset");
+                break;
+            case 14:
+                snprintf(itemText, sizeof(itemText), "Set Array Size");
+                break;
+            case 15:
+                snprintf(itemText, sizeof(itemText), "Close App");
+                break;
+            default:
+                itemText[0] = '\0';
+                break;
+        }
+
+        DrawText(itemText, menuX + 24, menuY + 88 + i * itemLineHeight, itemFontSize, c);
     }
 }
 
@@ -157,15 +203,19 @@ void draw_elements(const UiDrawContext *ctx)
     DrawText(TextFormat("Size: %d", ctx->arraySize), 20, 92, 24, SKYBLUE);
     DrawText(TextFormat("Dist: %s [D]", ctx->distributionName), 20, 122, 24, SKYBLUE);
     DrawText(TextFormat("Vol: %.2f [ / ]", ctx->masterVolume), 20, 152, 24, SKYBLUE);
-    DrawText(TextFormat("Audio C:%s S:%s P:%s F:%s", ctx->compareAudioEnabled ? "ON" : "OFF", ctx->swapAudioEnabled ? "ON" : "OFF", ctx->progressAudioEnabled ? "ON" : "OFF", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, 182, 20, LIGHTGRAY);
-    DrawText(TextFormat("Render: %s", useLineMode ? "LINES" : "BARS"), 20, 207, 20, LIGHTGRAY);
-    DrawText(TextFormat("Step [M]: %s  One [N]", ctx->stepMode ? "ON" : "OFF"), 20, 232, 20, LIGHTGRAY);
-    DrawText(TextFormat("Values [V]: %s", ctx->showValues ? "ON" : "OFF"), 20, 257, 20, LIGHTGRAY);
-    DrawText(TextFormat("Minimal [U]: %s", ctx->minimalUiMode ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
-    DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 307, 20, LIGHTGRAY);
-    DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 332, 20, LIGHTGRAY);
-    DrawText(TextFormat("Telemetry [T]: %s", ctx->showTelemetry ? "ON" : "OFF"), 20, 357, 20, LIGHTGRAY);
-    DrawText(TextFormat("Size Box [B]: %s", ctx->showSizeInputBox ? "ON" : "OFF"), 20, 382, 20, LIGHTGRAY);
+
+    if (ctx->showSettingsOverlay) {
+        DrawText(TextFormat("Audio C:%s S:%s P:%s F:%s", ctx->compareAudioEnabled ? "ON" : "OFF", ctx->swapAudioEnabled ? "ON" : "OFF", ctx->progressAudioEnabled ? "ON" : "OFF", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, 182, 20, LIGHTGRAY);
+        DrawText(TextFormat("Render: %s", useLineMode ? "LINES" : "BARS"), 20, 207, 20, LIGHTGRAY);
+        DrawText(TextFormat("Step [M]: %s  One [N]", ctx->stepMode ? "ON" : "OFF"), 20, 232, 20, LIGHTGRAY);
+        DrawText(TextFormat("Settings [G]: %s", ctx->showSettingsOverlay ? "ON" : "OFF"), 20, 257, 20, LIGHTGRAY);
+        DrawText(TextFormat("Values [V]: %s", ctx->showValues ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
+        DrawText(TextFormat("Minimal [U]: %s", ctx->minimalUiMode ? "ON" : "OFF"), 20, 307, 20, LIGHTGRAY);
+        DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 332, 20, LIGHTGRAY);
+        DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 357, 20, LIGHTGRAY);
+        DrawText(TextFormat("Telemetry [T]: %s", ctx->showTelemetry ? "ON" : "OFF"), 20, 382, 20, LIGHTGRAY);
+        DrawText(TextFormat("Size Box [B]: %s", ctx->showSizeInputBox ? "ON" : "OFF"), 20, 407, 20, LIGHTGRAY);
+    }
     DrawText(TextFormat("Stats  cmp:%llu  swp:%llu  steps:%llu", ctx->statComparisons, ctx->statSwaps, ctx->statSteps), 360, 20, 20, LIGHTGRAY);
     DrawText(TextFormat("Time: %.2fs  Steps/s: %.1f", ctx->statElapsed, (ctx->statElapsed > 0.0f) ? ((float)ctx->statSteps / ctx->statElapsed) : 0.0f), 360, 40, 20, LIGHTGRAY);
 
@@ -252,8 +302,9 @@ void draw_elements(const UiDrawContext *ctx)
     if (ctx->sortingDone && !ctx->completionSweepActive) {
         float remaining = ctx->autoNextSortDelay - ctx->autoNextSortTimer;
         if (remaining < 0.0f) remaining = 0.0f;
-        DrawText(TextFormat("Next Sort In: %.1fs", remaining), 20, messageY, 24, SKYBLUE);
-        messageY += 30;
+        int timerX = ctx->width - 560;
+        if (timerX < 20) timerX = 20;
+        DrawText(TextFormat("Next Sort In: %.1fs", remaining), timerX, 64, 24, SKYBLUE);
     }
 
     if (ctx->statusTimer > 0.0f) {
@@ -278,13 +329,15 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText(TextFormat("V: Values [%s]", ctx->showValues ? "ON" : "OFF"), 20, infoY + 305, 20, LIGHTGRAY);
         DrawText(TextFormat("L: Legend [%s]", ctx->showLegend ? "ON" : "OFF"), 20, infoY + 330, 20, LIGHTGRAY);
         DrawText(TextFormat("H: HUD [%s]", ctx->showHud ? "ON" : "OFF"), 20, infoY + 355, 20, LIGHTGRAY);
-        DrawText(TextFormat("T: Telemetry [%s]", ctx->showTelemetry ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
-        DrawText(TextFormat("B: Size Box [%s]", ctx->showSizeInputBox ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
-        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
-        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 455, 20, LIGHTGRAY);
-        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 480, 20, LIGHTGRAY);
-        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 505, 20, LIGHTGRAY);
-        DrawText("[ / ]: Master Volume", 20, infoY + 530, 20, LIGHTGRAY);
+        DrawText(TextFormat("G: Settings Overlay [%s]", ctx->showSettingsOverlay ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
+        DrawText(TextFormat("T: Telemetry [%s]", ctx->showTelemetry ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
+        DrawText(TextFormat("B: Size Box [%s]", ctx->showSizeInputBox ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
+        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 455, 20, LIGHTGRAY);
+        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 480, 20, LIGHTGRAY);
+        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 505, 20, LIGHTGRAY);
+        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 530, 20, LIGHTGRAY);
+        DrawText("[ / ]: Master Volume", 20, infoY + 555, 20, LIGHTGRAY);
+        DrawText("X: Benchmark Suite", 20, infoY + 580, 20, LIGHTGRAY);
     }
 
     if (ctx->pauseMenuActive) {

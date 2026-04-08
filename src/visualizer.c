@@ -29,7 +29,52 @@ static const float masterVolumeStep = 0.05f;
 static const float autoNextSortDelay = 3.0f;
 static const char *presetPath = "presets/visualizer_preset.cfg";
 
+typedef struct SortDescriptor {
+    SortMode mode;
+    const char *name;
+} SortDescriptor;
+
+static const SortDescriptor sortRegistry[] = {
+    { SORT_BUBBLE, "Bubble" },
+    { SORT_INSERTION, "Insertion" },
+    { SORT_SELECTION, "Selection" },
+    { SORT_HEAP, "Heap" },
+    { SORT_QUICK, "Quick" }
+};
+
+#define SORT_REGISTRY_COUNT ((int)(sizeof(sortRegistry) / sizeof(sortRegistry[0])))
+#define MAX_BENCHMARK_RESULTS 32
+
+typedef struct BenchmarkResult {
+    SortMode mode;
+    unsigned long long comparisons;
+    unsigned long long swaps;
+    unsigned long long steps;
+    float elapsed;
+} BenchmarkResult;
+
+typedef struct BenchmarkState {
+    bool active;
+    bool running;
+    int currentSortIndex;
+    int resultCount;
+    BenchmarkResult results[MAX_BENCHMARK_RESULTS];
+    int baselineNumbers[MAX_SIZE];
+    SortMode previousSort;
+    bool previousPaused;
+    bool previousStepMode;
+} BenchmarkState;
+
+static BenchmarkState benchmark = { 0 };
+
 static void init_numbers_sequential(void);
+static const char *get_sort_name_by_mode(SortMode mode);
+static int get_sort_index(SortMode mode);
+static void benchmark_begin_current_sort(void);
+static void benchmark_start(void);
+static void benchmark_cancel(void);
+static void benchmark_update(void);
+static void draw_benchmark_overlay(void);
 
 static void set_status_text(const char *text)
 {
@@ -64,6 +109,7 @@ static void save_preset(float speedMultiplier)
         .showValues = app.showValues,
         .showLegend = app.showLegend,
         .showHud = app.showHud,
+        .showSettingsOverlay = app.showSettingsOverlay,
         .showTelemetry = app.showTelemetry,
         .showSizeInputBox = app.showSizeInputBox,
         .masterVolume = app.masterVolume
@@ -89,6 +135,7 @@ static bool load_preset(float *speedMultiplier)
     settings.showValues = app.showValues;
     settings.showLegend = app.showLegend;
     settings.showHud = app.showHud;
+    settings.showSettingsOverlay = app.showSettingsOverlay;
     settings.showTelemetry = app.showTelemetry;
     settings.showSizeInputBox = app.showSizeInputBox;
     settings.masterVolume = app.masterVolume;
@@ -107,6 +154,7 @@ static bool load_preset(float *speedMultiplier)
     app.showValues = settings.showValues;
     app.showLegend = settings.showLegend;
     app.showHud = settings.showHud;
+    app.showSettingsOverlay = settings.showSettingsOverlay;
     app.showTelemetry = settings.showTelemetry;
     app.showSizeInputBox = settings.showSizeInputBox;
     if (!app.showSizeInputBox) {
@@ -279,17 +327,13 @@ static void reset_sort_state(bool reshuffle)
 
 static void cycle_sort_mode(void)
 {
-    if (app.currentSort == SORT_BUBBLE) {
-        app.currentSort = SORT_INSERTION;
-    } else if (app.currentSort == SORT_INSERTION) {
-        app.currentSort = SORT_SELECTION;
-    } else if (app.currentSort == SORT_SELECTION) {
-        app.currentSort = SORT_HEAP;
-    } else if (app.currentSort == SORT_HEAP) {
-        app.currentSort = SORT_QUICK;
-    } else {
-        app.currentSort = SORT_BUBBLE;
+    int index = get_sort_index(app.currentSort);
+    if (index < 0) {
+        index = 0;
     }
+
+    index = (index + 1) % SORT_REGISTRY_COUNT;
+    app.currentSort = sortRegistry[index].mode;
 
     reset_sort_state(true);
 }
@@ -361,25 +405,180 @@ static void play_sorted_sound(void)
     audio_play_sorted(&app.audio, app.progressAudioEnabled);
 }
 
+static int get_sort_index(SortMode mode)
+{
+    for (int i = 0; i < SORT_REGISTRY_COUNT; i++) {
+        if (sortRegistry[i].mode == mode) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static const char *get_sort_name_by_mode(SortMode mode)
+{
+    int index = get_sort_index(mode);
+    if (index >= 0) {
+        return sortRegistry[index].name;
+    }
+
+    return "Unknown";
+}
+
 static const char *get_sort_name(void)
 {
-    if (app.currentSort == SORT_BUBBLE) {
-        return "Bubble";
+    return get_sort_name_by_mode(app.currentSort);
+}
+
+static void benchmark_begin_current_sort(void)
+{
+    if (benchmark.currentSortIndex < 0 || benchmark.currentSortIndex >= SORT_REGISTRY_COUNT) {
+        benchmark.running = false;
+        benchmark.active = false;
+        set_status_text("Benchmark failed: invalid sort index");
+        return;
     }
 
-    if (app.currentSort == SORT_INSERTION) {
-        return "Insertion";
+    app.currentSort = sortRegistry[benchmark.currentSortIndex].mode;
+    memcpy(numbers, benchmark.baselineNumbers, (size_t)app.arraySize * sizeof(numbers[0]));
+    reset_sort_state(false);
+    app.stepMode = false;
+    app.paused = false;
+    app.pauseMenuActive = false;
+}
+
+static void benchmark_start(void)
+{
+    if (SORT_REGISTRY_COUNT <= 0) {
+        set_status_text("Benchmark unavailable: no sorts registered");
+        return;
     }
 
-    if (app.currentSort == SORT_SELECTION) {
-        return "Selection";
+    if (SORT_REGISTRY_COUNT > MAX_BENCHMARK_RESULTS) {
+        set_status_text("Benchmark unavailable: result buffer too small");
+        return;
     }
 
-    if (app.currentSort == SORT_HEAP) {
-        return "Heap";
+    benchmark.previousSort = app.currentSort;
+    benchmark.previousPaused = app.paused;
+    benchmark.previousStepMode = app.stepMode;
+    benchmark.resultCount = 0;
+    benchmark.currentSortIndex = 0;
+    benchmark.active = true;
+    benchmark.running = true;
+
+    shuffle_numbers();
+    memcpy(benchmark.baselineNumbers, numbers, (size_t)app.arraySize * sizeof(numbers[0]));
+
+    benchmark_begin_current_sort();
+    set_status_text("Benchmark started");
+}
+
+static void benchmark_cancel(void)
+{
+    benchmark.running = false;
+    benchmark.active = false;
+    app.currentSort = benchmark.previousSort;
+    reset_sort_state(true);
+    app.stepMode = benchmark.previousStepMode;
+    app.paused = benchmark.previousPaused;
+    app.pauseMenuActive = false;
+    set_status_text("Benchmark cancelled");
+}
+
+static void benchmark_update(void)
+{
+    if (!benchmark.running) {
+        return;
     }
 
-    return "Quick";
+    if (!app.sortingDone) {
+        return;
+    }
+
+    if (benchmark.resultCount < MAX_BENCHMARK_RESULTS) {
+        BenchmarkResult *result = &benchmark.results[benchmark.resultCount++];
+        result->mode = app.currentSort;
+        result->comparisons = app.statComparisons;
+        result->swaps = app.statSwaps;
+        result->steps = app.statSteps;
+        result->elapsed = app.statElapsed;
+    }
+
+    benchmark.currentSortIndex++;
+    if (benchmark.currentSortIndex < SORT_REGISTRY_COUNT) {
+        benchmark_begin_current_sort();
+        return;
+    }
+
+    benchmark.running = false;
+    benchmark.active = true;
+    app.currentSort = benchmark.previousSort;
+    memcpy(numbers, benchmark.baselineNumbers, (size_t)app.arraySize * sizeof(numbers[0]));
+    reset_sort_state(false);
+    app.stepMode = benchmark.previousStepMode;
+    app.paused = true;
+    app.pauseMenuActive = false;
+    set_status_text("Benchmark complete (X to hide)");
+}
+
+static void draw_benchmark_overlay(void)
+{
+    if (!benchmark.active) {
+        return;
+    }
+
+    int panelX = WIDTH - 700;
+    int panelY = 220;
+    int panelW = 660;
+    int panelH = HEIGHT - panelY - 30;
+    if (panelX < 20) panelX = 20;
+    if (panelW < 360) panelW = 360;
+    if (panelH < 240) panelH = 240;
+
+    DrawRectangle(panelX, panelY, panelW, panelH, Fade(BLACK, 0.75f));
+    DrawRectangleLinesEx((Rectangle){ (float)panelX, (float)panelY, (float)panelW, (float)panelH }, 2.0f, SKYBLUE);
+
+    DrawText("Benchmark Suite [X]", panelX + 16, panelY + 14, 26, YELLOW);
+    DrawText(TextFormat("N=%d  Dist=%s  Sorts=%d", app.arraySize, get_distribution_name(), SORT_REGISTRY_COUNT), panelX + 16, panelY + 44, 20, LIGHTGRAY);
+
+    if (benchmark.running) {
+        const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.currentSortIndex].mode);
+        DrawText(TextFormat("Running: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, SORT_REGISTRY_COUNT), panelX + 16, panelY + 70, 20, SKYBLUE);
+    } else {
+        DrawText("Status: Complete", panelX + 16, panelY + 70, 20, SKYBLUE);
+    }
+
+    int tableY = panelY + 102;
+    DrawText("Sort", panelX + 16, tableY, 20, YELLOW);
+    DrawText("Time(s)", panelX + 170, tableY, 20, YELLOW);
+    DrawText("Cmp", panelX + 280, tableY, 20, YELLOW);
+    DrawText("Swp", panelX + 400, tableY, 20, YELLOW);
+    DrawText("Steps", panelX + 510, tableY, 20, YELLOW);
+
+    int rowY = tableY + 28;
+    int maxRows = (panelY + panelH - rowY - 26) / 24;
+    if (maxRows < 1) maxRows = 1;
+
+    int rowsToDraw = benchmark.resultCount;
+    if (rowsToDraw > maxRows) {
+        rowsToDraw = maxRows;
+    }
+
+    for (int i = 0; i < rowsToDraw; i++) {
+        const BenchmarkResult *result = &benchmark.results[i];
+        DrawText(get_sort_name_by_mode(result->mode), panelX + 16, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%.3f", result->elapsed), panelX + 170, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%llu", result->comparisons), panelX + 280, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%llu", result->swaps), panelX + 400, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%llu", result->steps), panelX + 510, rowY + i * 24, 20, RAYWHITE);
+    }
+
+    if (benchmark.resultCount > rowsToDraw) {
+        int hidden = benchmark.resultCount - rowsToDraw;
+        DrawText(TextFormat("... and %d more", hidden), panelX + 16, rowY + rowsToDraw * 24, 18, LIGHTGRAY);
+    }
 }
 
 static void start_completion_sweep(void)
@@ -449,6 +648,7 @@ int main(){
             .showValues = &app.showValues,
             .showLegend = &app.showLegend,
             .showHud = &app.showHud,
+            .showSettingsOverlay = &app.showSettingsOverlay,
             .showTelemetry = &app.showTelemetry,
             .showSizeInputBox = &app.showSizeInputBox,
             .minimalUiMode = &app.minimalUiMode,
@@ -470,6 +670,27 @@ int main(){
         };
         controller_handle_input(&controller, dt);
 
+        if (!app.sizeInputActive && !app.pauseMenuActive && IsKeyPressed(KEY_X)) {
+            if (benchmark.running) {
+                benchmark_cancel();
+            } else if (!benchmark.active) {
+                benchmark_start();
+                stepTimer = 0.0f;
+            } else {
+                benchmark.active = false;
+                app.paused = benchmark.previousPaused;
+                set_status_text("Benchmark overlay hidden");
+            }
+        }
+
+        if (benchmark.running) {
+            app.paused = false;
+            app.pauseMenuActive = false;
+            app.sizeInputActive = false;
+            app.stepMode = false;
+            app.stepOnceRequested = false;
+        }
+
         audio_set_master_volume(&app.audio, app.masterVolume);
 
         if (!app.paused && !app.sortingDone && !app.stepMode) {
@@ -489,7 +710,11 @@ int main(){
             app.stepOnceRequested = false;
         }
 
-        if (app.sortingDone && !audio_completion_sweep_active(&app.audio) && !app.paused && !app.stepMode) {
+        if (benchmark.running) {
+            benchmark_update();
+        }
+
+        if (!benchmark.running && app.sortingDone && !audio_completion_sweep_active(&app.audio) && !app.paused && !app.stepMode) {
             app.autoNextSortTimer += dt;
             if (app.autoNextSortTimer >= autoNextSortDelay) {
                 cycle_sort_mode();
@@ -545,6 +770,7 @@ int main(){
             .insertionKey = app.insertionKey,
             .showValues = app.showValues,
             .showHud = app.showHud,
+            .showSettingsOverlay = app.showSettingsOverlay,
             .showTelemetry = app.showTelemetry,
             .showSizeInputBox = app.showSizeInputBox,
             .sizeInputActive = app.sizeInputActive,
@@ -574,6 +800,7 @@ int main(){
             .autoNextSortTimer = app.autoNextSortTimer
         };
         draw_elements(&ui);
+        draw_benchmark_overlay();
 
         EndDrawing();
     }

@@ -57,6 +57,7 @@ typedef struct RuntimeState {
     bool showValues;
     bool showLegend;
     bool showHud;
+    bool showSettingsOverlay;
     bool showTelemetry;
     bool showSizeInputBox;
     bool minimalUiMode;
