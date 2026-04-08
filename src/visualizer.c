@@ -110,7 +110,11 @@ typedef struct BenchmarkState {
     bool inWarmup;
     int currentSortIndex;
     int currentRunIndex;
+    int selectedConfigSortIndex;
     int resultCount;
+    int sequenceCount;
+    int sequence[MAX_BENCHMARK_RESULTS];
+    bool sortEnabled[MAX_BENCHMARK_RESULTS];
     BenchmarkResult results[MAX_BENCHMARK_RESULTS];
     int baselineNumbers[MAX_SIZE];
     SortMode previousSort;
@@ -132,6 +136,7 @@ static void benchmark_start(void);
 static void benchmark_cancel(void);
 static void benchmark_update(void);
 static void benchmark_prepare_run_baseline(void);
+static int benchmark_build_sequence(void);
 static void draw_benchmark_overlay(void);
 
 static void set_status_text(const char *text)
@@ -531,19 +536,31 @@ static Color color_from_id(int colorId)
 
 static void benchmark_begin_current_sort(void)
 {
-    if (benchmark.currentSortIndex < 0 || benchmark.currentSortIndex >= SORT_REGISTRY_COUNT) {
+    if (benchmark.currentSortIndex < 0 || benchmark.currentSortIndex >= benchmark.sequenceCount) {
         benchmark.running = false;
         benchmark.active = false;
         set_status_text("Benchmark failed: invalid sort index");
         return;
     }
 
-    app.currentSort = sortRegistry[benchmark.currentSortIndex].mode;
+    app.currentSort = sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode;
     memcpy(numbers, benchmark.baselineNumbers, (size_t)app.arraySize * sizeof(numbers[0]));
     reset_sort_state(false);
     app.stepMode = false;
     app.paused = false;
     app.pauseMenuActive = false;
+}
+
+static int benchmark_build_sequence(void)
+{
+    int count = 0;
+    for (int i = 0; i < SORT_REGISTRY_COUNT; i++) {
+        if (i < MAX_BENCHMARK_RESULTS && benchmark.sortEnabled[i]) {
+            benchmark.sequence[count++] = i;
+        }
+    }
+    benchmark.sequenceCount = count;
+    return count;
 }
 
 static void benchmark_prepare_run_baseline(void)
@@ -573,6 +590,11 @@ static void benchmark_start(void)
 
     if (benchmark.configRunsPerSort < 1) {
         benchmark.configRunsPerSort = 1;
+    }
+
+    if (benchmark_build_sequence() <= 0) {
+        set_status_text("Benchmark unavailable: no sorts selected");
+        return;
     }
 
     benchmark.previousSort = app.currentSort;
@@ -624,8 +646,9 @@ static void benchmark_update(void)
         return;
     }
 
-    if (!benchmark.inWarmup && benchmark.currentSortIndex >= 0 && benchmark.currentSortIndex < benchmark.resultCount) {
-        BenchmarkResult *result = &benchmark.results[benchmark.currentSortIndex];
+    if (!benchmark.inWarmup && benchmark.currentSortIndex >= 0 && benchmark.currentSortIndex < benchmark.sequenceCount) {
+        int resultIndex = benchmark.sequence[benchmark.currentSortIndex];
+        BenchmarkResult *result = &benchmark.results[resultIndex];
         result->totalComparisons += app.statComparisons;
         result->totalSwaps += app.statSwaps;
         result->totalSteps += app.statSteps;
@@ -636,7 +659,7 @@ static void benchmark_update(void)
     }
 
     benchmark.currentSortIndex++;
-    if (benchmark.currentSortIndex < SORT_REGISTRY_COUNT) {
+    if (benchmark.currentSortIndex < benchmark.sequenceCount) {
         benchmark_begin_current_sort();
         return;
     }
@@ -688,19 +711,26 @@ static void draw_benchmark_overlay(void)
     DrawRectangleLinesEx((Rectangle){ (float)panelX, (float)panelY, (float)panelW, (float)panelH }, 2.0f, SKYBLUE);
 
     DrawText("Benchmark Suite [X]", panelX + 16, panelY + 14, 26, YELLOW);
-    DrawText(TextFormat("N=%d  Dist=%s  Sorts=%d", app.arraySize, get_distribution_name(), SORT_REGISTRY_COUNT), panelX + 16, panelY + 44, 20, LIGHTGRAY);
+    DrawText(TextFormat("N=%d  Dist=%s  Sorts=%d/%d", app.arraySize, get_distribution_name(), benchmark.sequenceCount, SORT_REGISTRY_COUNT), panelX + 16, panelY + 44, 20, LIGHTGRAY);
     DrawText(TextFormat("Config: Runs[-/=]%d  Seed[Z]:%s  Warmup[W]:%s", benchmark.configRunsPerSort, benchmark.configUseFixedSeed ? "ON" : "OFF", benchmark.configWarmup ? "ON" : "OFF"), panelX + 16, panelY + 68, 18, LIGHTGRAY);
-    DrawText(TextFormat("Seed Value [,/.]: %u", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
+    DrawText(TextFormat("Seed Value [,/.]: %u  Subset [LEFT/RIGHT or [ / ]], Toggle[;], Enter=start", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
 
     if (benchmark.running) {
-        const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.currentSortIndex].mode);
+        const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode);
         if (benchmark.inWarmup) {
-            DrawText(TextFormat("Running Warmup: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, SORT_REGISTRY_COUNT), panelX + 16, panelY + 114, 20, SKYBLUE);
+            DrawText(TextFormat("Running Warmup: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, benchmark.sequenceCount), panelX + 16, panelY + 114, 20, SKYBLUE);
         } else {
-            DrawText(TextFormat("Running: %s  run %d/%d  (%d/%d)", runningName, benchmark.currentRunIndex + 1, benchmark.configRunsPerSort, benchmark.currentSortIndex + 1, SORT_REGISTRY_COUNT), panelX + 16, panelY + 114, 20, SKYBLUE);
+            DrawText(TextFormat("Running: %s  run %d/%d  (%d/%d)", runningName, benchmark.currentRunIndex + 1, benchmark.configRunsPerSort, benchmark.currentSortIndex + 1, benchmark.sequenceCount), panelX + 16, panelY + 114, 20, SKYBLUE);
         }
     } else {
-        DrawText("Status: Complete", panelX + 16, panelY + 114, 20, SKYBLUE);
+        bool hasResults = false;
+        for (int i = 0; i < benchmark.resultCount; i++) {
+            if (benchmark.results[i].runs > 0) {
+                hasResults = true;
+                break;
+            }
+        }
+        DrawText(hasResults ? "Status: Complete" : "Status: Config", panelX + 16, panelY + 114, 20, SKYBLUE);
     }
 
     int tableY = panelY + 146;
@@ -723,18 +753,24 @@ static void draw_benchmark_overlay(void)
 
     for (int i = 0; i < rowsToDraw; i++) {
         const BenchmarkResult *result = &benchmark.results[i];
+        bool enabled = benchmark.sortEnabled[i];
+        bool selected = (!benchmark.running && benchmark.active && i == benchmark.selectedConfigSortIndex);
         float avg = (result->runs > 0) ? (result->totalElapsed / (float)result->runs) : 0.0f;
         float min = (result->runs > 0) ? result->minElapsed : 0.0f;
         float max = (result->runs > 0) ? result->maxElapsed : 0.0f;
         unsigned long long avgCmp = (result->runs > 0) ? (result->totalComparisons / (unsigned long long)result->runs) : 0ULL;
         unsigned long long avgSwp = (result->runs > 0) ? (result->totalSwaps / (unsigned long long)result->runs) : 0ULL;
-        DrawText(get_sort_name_by_mode(result->mode), panelX + 16, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%.3f", avg), panelX + 150, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%.3f", min), panelX + 235, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%.3f", max), panelX + 320, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%llu", avgCmp), panelX + 405, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%llu", avgSwp), panelX + 490, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%d", result->runs), panelX + 575, rowY + i * 24, 20, RAYWHITE);
+        Color rowColor = enabled ? RAYWHITE : GRAY;
+        if (selected) {
+            DrawRectangle(panelX + 10, rowY + i * 24 - 2, panelW - 20, 24, Fade(SKYBLUE, 0.25f));
+        }
+        DrawText(TextFormat("[%c] %s", enabled ? 'x' : ' ', sortRegistry[i].name), panelX + 16, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("%.3f", avg), panelX + 150, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("%.3f", min), panelX + 235, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("%.3f", max), panelX + 320, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("%llu", avgCmp), panelX + 405, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("%llu", avgSwp), panelX + 490, rowY + i * 24, 20, rowColor);
+        DrawText(TextFormat("%d", result->runs), panelX + 575, rowY + i * 24, 20, rowColor);
     }
 
     if (benchmark.resultCount > rowsToDraw) {
@@ -886,6 +922,11 @@ int main(){
     benchmark.configFixedSeed = 1337u;
     benchmark.configRunsPerSort = 3;
     benchmark.configWarmup = false;
+    benchmark.selectedConfigSortIndex = 0;
+    for (int i = 0; i < SORT_REGISTRY_COUNT && i < MAX_BENCHMARK_RESULTS; i++) {
+        benchmark.sortEnabled[i] = true;
+    }
+    benchmark_build_sequence();
 
     reset_sort_state(false);
     
@@ -894,6 +935,7 @@ int main(){
         audio_begin_frame(&app.audio);
 
         ControllerContext controller = {
+            .windowWidth = WIDTH,
             .windowHeight = HEIGHT,
             .maxSize = MAX_SIZE,
             .arraySize = &app.arraySize,
@@ -967,14 +1009,48 @@ int main(){
                 }
                 set_status_text(TextFormat("Benchmark seed: %u", benchmark.configFixedSeed));
             }
+
+            if (benchmark.active) {
+                if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_LEFT_BRACKET)) {
+                    benchmark.selectedConfigSortIndex--;
+                    if (benchmark.selectedConfigSortIndex < 0) {
+                        benchmark.selectedConfigSortIndex = SORT_REGISTRY_COUNT - 1;
+                    }
+                }
+
+                if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_RIGHT_BRACKET)) {
+                    benchmark.selectedConfigSortIndex++;
+                    if (benchmark.selectedConfigSortIndex >= SORT_REGISTRY_COUNT) {
+                        benchmark.selectedConfigSortIndex = 0;
+                    }
+                }
+
+                if (IsKeyPressed(KEY_SEMICOLON)) {
+                    int idx = benchmark.selectedConfigSortIndex;
+                    if (idx >= 0 && idx < SORT_REGISTRY_COUNT) {
+                        benchmark.sortEnabled[idx] = !benchmark.sortEnabled[idx];
+                        benchmark_build_sequence();
+                        set_status_text(TextFormat("Benchmark subset: %d selected", benchmark.sequenceCount));
+                    }
+                }
+
+                if (IsKeyPressed(KEY_ENTER)) {
+                    benchmark_start();
+                    stepTimer = 0.0f;
+                }
+            }
         }
 
         if (!app.sizeInputActive && !app.pauseMenuActive && IsKeyPressed(KEY_X)) {
             if (benchmark.running) {
                 benchmark_cancel();
             } else if (!benchmark.active) {
-                benchmark_start();
-                stepTimer = 0.0f;
+                benchmark.active = true;
+                benchmark.running = false;
+                benchmark.selectedConfigSortIndex = 0;
+                benchmark.resultCount = SORT_REGISTRY_COUNT;
+                benchmark_build_sequence();
+                set_status_text("Benchmark config open (Enter to start)");
             } else {
                 benchmark.active = false;
                 app.paused = benchmark.previousPaused;

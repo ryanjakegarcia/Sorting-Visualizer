@@ -105,6 +105,8 @@ typedef struct UiDrawContext {
 } UiDrawContext;
 
 Rectangle ui_get_size_input_box(int height);
+int ui_get_pause_menu_item_count(void);
+Rectangle ui_get_pause_menu_item_rect(int width, int height, int itemIndex);
 void draw_elements(const UiDrawContext *ctx);
 
 #endif

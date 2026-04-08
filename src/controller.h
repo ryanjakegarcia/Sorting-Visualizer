@@ -11,6 +11,7 @@ typedef bool (*ControllerLoadPresetFn)(float *speedMultiplier);
 typedef void (*ControllerApplyArraySizeFn)(int newSize, bool usedDefault);
 
 typedef struct ControllerContext {
+    int windowWidth;
     int windowHeight;
     int maxSize;
 

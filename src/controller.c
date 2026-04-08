@@ -39,6 +39,80 @@ static int sanitize_array_size(int requested, int maxSize, bool *usedDefault)
     return requested;
 }
 
+static void execute_pause_menu_action(ControllerContext *ctx)
+{
+    switch (*ctx->pauseMenuSelection) {
+        case MENU_RESUME:
+            *ctx->pauseMenuActive = false;
+            *ctx->paused = *ctx->pausedBeforeMenu;
+            break;
+        case MENU_TOGGLE_HUD:
+            *ctx->showHud = !*ctx->showHud;
+            if (!*ctx->showHud) *ctx->sizeInputActive = false;
+            break;
+        case MENU_TOGGLE_SETTINGS_OVERLAY:
+            *ctx->showSettingsOverlay = !*ctx->showSettingsOverlay;
+            break;
+        case MENU_TOGGLE_LEGEND:
+            *ctx->showLegend = !*ctx->showLegend;
+            break;
+        case MENU_TOGGLE_VALUES:
+            *ctx->showValues = !*ctx->showValues;
+            break;
+        case MENU_TOGGLE_TELEMETRY:
+            *ctx->showTelemetry = !*ctx->showTelemetry;
+            break;
+        case MENU_TOGGLE_SIZE_BOX:
+            *ctx->showSizeInputBox = !*ctx->showSizeInputBox;
+            if (!*ctx->showSizeInputBox) *ctx->sizeInputActive = false;
+            break;
+        case MENU_TOGGLE_MINIMAL:
+            *ctx->minimalUiMode = !*ctx->minimalUiMode;
+            if (*ctx->minimalUiMode) *ctx->sizeInputActive = false;
+            break;
+        case MENU_TOGGLE_COMPARE_AUDIO:
+            *ctx->compareAudioEnabled = !*ctx->compareAudioEnabled;
+            break;
+        case MENU_TOGGLE_SWAP_AUDIO:
+            *ctx->swapAudioEnabled = !*ctx->swapAudioEnabled;
+            break;
+        case MENU_TOGGLE_PROGRESS_AUDIO:
+            *ctx->progressAudioEnabled = !*ctx->progressAudioEnabled;
+            break;
+        case MENU_TOGGLE_FINISH_AUDIO:
+            *ctx->finishAudioEnabled = !*ctx->finishAudioEnabled;
+            break;
+        case MENU_SAVE_PRESET:
+            if (ctx->savePreset != NULL) {
+                ctx->savePreset(*ctx->speedMultiplier);
+            }
+            break;
+        case MENU_LOAD_PRESET: {
+            bool loaded = false;
+            if (ctx->loadPreset != NULL) {
+                loaded = ctx->loadPreset(ctx->speedMultiplier);
+            }
+            if (loaded && ctx->resetSort != NULL) {
+                ctx->resetSort();
+                *ctx->stepTimer = 0.0f;
+                *ctx->pauseMenuActive = false;
+                *ctx->paused = *ctx->pausedBeforeMenu;
+            }
+            break;
+        }
+        case MENU_SET_ARRAY_SIZE:
+            *ctx->sizeInputActive = true;
+            snprintf(ctx->sizeInput, (size_t)ctx->sizeInputCapacity, "%d", *ctx->arraySize);
+            *ctx->sizeInputLen = (int)strlen(ctx->sizeInput);
+            break;
+        case MENU_CLOSE_APP:
+            *ctx->requestClose = true;
+            break;
+        default:
+            break;
+    }
+}
+
 void controller_handle_input(ControllerContext *ctx, float dt)
 {
     if (IsKeyPressed(KEY_SPACE) && !*ctx->sizeInputActive) {
@@ -96,6 +170,16 @@ void controller_handle_input(ControllerContext *ctx, float dt)
     }
 
     if (*ctx->pauseMenuActive && !*ctx->sizeInputActive) {
+        int itemCount = ui_get_pause_menu_item_count();
+        Vector2 mousePos = GetMousePosition();
+        for (int i = 0; i < itemCount; i++) {
+            Rectangle itemRect = ui_get_pause_menu_item_rect(ctx->windowWidth, ctx->windowHeight, i);
+            if (CheckCollisionPointRec(mousePos, itemRect)) {
+                *ctx->pauseMenuSelection = i;
+                break;
+            }
+        }
+
         if (IsKeyPressed(KEY_UP)) {
             (*ctx->pauseMenuSelection)--;
             if (*ctx->pauseMenuSelection < 0) *ctx->pauseMenuSelection = MENU_ITEM_COUNT - 1;
@@ -107,76 +191,11 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         }
 
         if (IsKeyPressed(KEY_ENTER)) {
-            switch (*ctx->pauseMenuSelection) {
-                case MENU_RESUME:
-                    *ctx->pauseMenuActive = false;
-                    *ctx->paused = *ctx->pausedBeforeMenu;
-                    break;
-                case MENU_TOGGLE_HUD:
-                    *ctx->showHud = !*ctx->showHud;
-                    if (!*ctx->showHud) *ctx->sizeInputActive = false;
-                    break;
-                case MENU_TOGGLE_SETTINGS_OVERLAY:
-                    *ctx->showSettingsOverlay = !*ctx->showSettingsOverlay;
-                    break;
-                case MENU_TOGGLE_LEGEND:
-                    *ctx->showLegend = !*ctx->showLegend;
-                    break;
-                case MENU_TOGGLE_VALUES:
-                    *ctx->showValues = !*ctx->showValues;
-                    break;
-                case MENU_TOGGLE_TELEMETRY:
-                    *ctx->showTelemetry = !*ctx->showTelemetry;
-                    break;
-                case MENU_TOGGLE_SIZE_BOX:
-                    *ctx->showSizeInputBox = !*ctx->showSizeInputBox;
-                    if (!*ctx->showSizeInputBox) *ctx->sizeInputActive = false;
-                    break;
-                case MENU_TOGGLE_MINIMAL:
-                    *ctx->minimalUiMode = !*ctx->minimalUiMode;
-                    if (*ctx->minimalUiMode) *ctx->sizeInputActive = false;
-                    break;
-                case MENU_TOGGLE_COMPARE_AUDIO:
-                    *ctx->compareAudioEnabled = !*ctx->compareAudioEnabled;
-                    break;
-                case MENU_TOGGLE_SWAP_AUDIO:
-                    *ctx->swapAudioEnabled = !*ctx->swapAudioEnabled;
-                    break;
-                case MENU_TOGGLE_PROGRESS_AUDIO:
-                    *ctx->progressAudioEnabled = !*ctx->progressAudioEnabled;
-                    break;
-                case MENU_TOGGLE_FINISH_AUDIO:
-                    *ctx->finishAudioEnabled = !*ctx->finishAudioEnabled;
-                    break;
-                case MENU_SAVE_PRESET:
-                    if (ctx->savePreset != NULL) {
-                        ctx->savePreset(*ctx->speedMultiplier);
-                    }
-                    break;
-                case MENU_LOAD_PRESET: {
-                    bool loaded = false;
-                    if (ctx->loadPreset != NULL) {
-                        loaded = ctx->loadPreset(ctx->speedMultiplier);
-                    }
-                    if (loaded && ctx->resetSort != NULL) {
-                        ctx->resetSort();
-                        *ctx->stepTimer = 0.0f;
-                        *ctx->pauseMenuActive = false;
-                        *ctx->paused = *ctx->pausedBeforeMenu;
-                    }
-                    break;
-                }
-                case MENU_SET_ARRAY_SIZE:
-                    *ctx->sizeInputActive = true;
-                    snprintf(ctx->sizeInput, (size_t)ctx->sizeInputCapacity, "%d", *ctx->arraySize);
-                    *ctx->sizeInputLen = (int)strlen(ctx->sizeInput);
-                    break;
-                case MENU_CLOSE_APP:
-                    *ctx->requestClose = true;
-                    break;
-                default:
-                    break;
-            }
+            execute_pause_menu_action(ctx);
+        }
+
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            execute_pause_menu_action(ctx);
         }
     }
 

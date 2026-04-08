@@ -19,19 +19,60 @@ Rectangle ui_get_size_input_box(int height)
     return box;
 }
 
+int ui_get_pause_menu_item_count(void)
+{
+    return 16;
+}
+
+static void get_pause_menu_layout(int width, int height, int *menuX, int *menuY, int *menuWidth, int *menuHeight, int *itemLineHeight)
+{
+    int itemCount = ui_get_pause_menu_item_count();
+    int mw = 460;
+    int ilh = 30;
+    int mh = 96 + itemCount * ilh;
+    int mx = (width - mw) / 2;
+    int my = (height - mh) / 2;
+    if (my < 20) {
+        my = 20;
+    }
+
+    *menuX = mx;
+    *menuY = my;
+    *menuWidth = mw;
+    *menuHeight = mh;
+    *itemLineHeight = ilh;
+}
+
+Rectangle ui_get_pause_menu_item_rect(int width, int height, int itemIndex)
+{
+    int itemCount = ui_get_pause_menu_item_count();
+    if (itemIndex < 0 || itemIndex >= itemCount) {
+        return (Rectangle){ 0 };
+    }
+
+    int menuX = 0;
+    int menuY = 0;
+    int menuWidth = 0;
+    int menuHeight = 0;
+    int itemLineHeight = 0;
+    get_pause_menu_layout(width, height, &menuX, &menuY, &menuWidth, &menuHeight, &itemLineHeight);
+
+    (void)menuWidth;
+    (void)menuHeight;
+    return (Rectangle){ (float)(menuX + 20), (float)(menuY + 86 + itemIndex * itemLineHeight), 420.0f, (float)itemLineHeight };
+}
+
 static void draw_pause_menu(const UiDrawContext *ctx)
 {
-    const int itemCount = 16;
-    const int itemLineHeight = 30;
+    const int itemCount = ui_get_pause_menu_item_count();
+    int itemLineHeight = 0;
     const int itemFontSize = 22;
 
-    int menuWidth = 460;
-    int menuHeight = 96 + itemCount * itemLineHeight;
-    int menuX = (ctx->width - menuWidth) / 2;
-    int menuY = (ctx->height - menuHeight) / 2;
-    if (menuY < 20) {
-        menuY = 20;
-    }
+    int menuWidth = 0;
+    int menuHeight = 0;
+    int menuX = 0;
+    int menuY = 0;
+    get_pause_menu_layout(ctx->width, ctx->height, &menuX, &menuY, &menuWidth, &menuHeight, &itemLineHeight);
 
     DrawRectangle(0, 0, ctx->width, ctx->height, Fade(BLACK, 0.55f));
     DrawRectangle(menuX, menuY, menuWidth, menuHeight, Fade(DARKGRAY, 0.90f));
