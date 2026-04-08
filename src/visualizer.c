@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 #include <math.h>
 #include <time.h>
 #include <raylib.h>
@@ -76,22 +77,31 @@ static const SortDescriptor sortRegistry[] = {
 
 typedef struct BenchmarkResult {
     SortMode mode;
-    unsigned long long comparisons;
-    unsigned long long swaps;
-    unsigned long long steps;
-    float elapsed;
+    unsigned long long totalComparisons;
+    unsigned long long totalSwaps;
+    unsigned long long totalSteps;
+    float totalElapsed;
+    float minElapsed;
+    float maxElapsed;
+    int runs;
 } BenchmarkResult;
 
 typedef struct BenchmarkState {
     bool active;
     bool running;
+    bool inWarmup;
     int currentSortIndex;
+    int currentRunIndex;
     int resultCount;
     BenchmarkResult results[MAX_BENCHMARK_RESULTS];
     int baselineNumbers[MAX_SIZE];
     SortMode previousSort;
     bool previousPaused;
     bool previousStepMode;
+    bool configUseFixedSeed;
+    unsigned int configFixedSeed;
+    int configRunsPerSort;
+    bool configWarmup;
 } BenchmarkState;
 
 static BenchmarkState benchmark = { 0 };
@@ -103,6 +113,7 @@ static void benchmark_begin_current_sort(void);
 static void benchmark_start(void);
 static void benchmark_cancel(void);
 static void benchmark_update(void);
+static void benchmark_prepare_run_baseline(void);
 static void draw_benchmark_overlay(void);
 
 static void set_status_text(const char *text)
@@ -500,6 +511,19 @@ static void benchmark_begin_current_sort(void)
     app.pauseMenuActive = false;
 }
 
+static void benchmark_prepare_run_baseline(void)
+{
+    if (benchmark.configUseFixedSeed) {
+        unsigned int seedBase = benchmark.configFixedSeed;
+        unsigned int runOffset = (unsigned int)(benchmark.currentRunIndex + 1) * 7919u;
+        unsigned int warmupOffset = benchmark.inWarmup ? 123u : 0u;
+        srand(seedBase + runOffset + warmupOffset);
+    }
+
+    shuffle_numbers();
+    memcpy(benchmark.baselineNumbers, numbers, (size_t)app.arraySize * sizeof(numbers[0]));
+}
+
 static void benchmark_start(void)
 {
     if (SORT_REGISTRY_COUNT <= 0) {
@@ -512,16 +536,32 @@ static void benchmark_start(void)
         return;
     }
 
+    if (benchmark.configRunsPerSort < 1) {
+        benchmark.configRunsPerSort = 1;
+    }
+
     benchmark.previousSort = app.currentSort;
     benchmark.previousPaused = app.paused;
     benchmark.previousStepMode = app.stepMode;
-    benchmark.resultCount = 0;
+    benchmark.resultCount = SORT_REGISTRY_COUNT;
     benchmark.currentSortIndex = 0;
+    benchmark.currentRunIndex = benchmark.configWarmup ? -1 : 0;
+    benchmark.inWarmup = benchmark.configWarmup;
     benchmark.active = true;
     benchmark.running = true;
 
-    shuffle_numbers();
-    memcpy(benchmark.baselineNumbers, numbers, (size_t)app.arraySize * sizeof(numbers[0]));
+    for (int i = 0; i < benchmark.resultCount; i++) {
+        benchmark.results[i].mode = sortRegistry[i].mode;
+        benchmark.results[i].totalComparisons = 0;
+        benchmark.results[i].totalSwaps = 0;
+        benchmark.results[i].totalSteps = 0;
+        benchmark.results[i].totalElapsed = 0.0f;
+        benchmark.results[i].minElapsed = FLT_MAX;
+        benchmark.results[i].maxElapsed = 0.0f;
+        benchmark.results[i].runs = 0;
+    }
+
+    benchmark_prepare_run_baseline();
 
     benchmark_begin_current_sort();
     set_status_text("Benchmark started");
@@ -549,17 +589,37 @@ static void benchmark_update(void)
         return;
     }
 
-    if (benchmark.resultCount < MAX_BENCHMARK_RESULTS) {
-        BenchmarkResult *result = &benchmark.results[benchmark.resultCount++];
-        result->mode = app.currentSort;
-        result->comparisons = app.statComparisons;
-        result->swaps = app.statSwaps;
-        result->steps = app.statSteps;
-        result->elapsed = app.statElapsed;
+    if (!benchmark.inWarmup && benchmark.currentSortIndex >= 0 && benchmark.currentSortIndex < benchmark.resultCount) {
+        BenchmarkResult *result = &benchmark.results[benchmark.currentSortIndex];
+        result->totalComparisons += app.statComparisons;
+        result->totalSwaps += app.statSwaps;
+        result->totalSteps += app.statSteps;
+        result->totalElapsed += app.statElapsed;
+        if (app.statElapsed < result->minElapsed) result->minElapsed = app.statElapsed;
+        if (app.statElapsed > result->maxElapsed) result->maxElapsed = app.statElapsed;
+        result->runs++;
     }
 
     benchmark.currentSortIndex++;
     if (benchmark.currentSortIndex < SORT_REGISTRY_COUNT) {
+        benchmark_begin_current_sort();
+        return;
+    }
+
+    if (benchmark.inWarmup) {
+        benchmark.inWarmup = false;
+        benchmark.currentRunIndex = 0;
+        benchmark.currentSortIndex = 0;
+        benchmark_prepare_run_baseline();
+        benchmark_begin_current_sort();
+        set_status_text("Benchmark warmup complete");
+        return;
+    }
+
+    benchmark.currentRunIndex++;
+    if (benchmark.currentRunIndex < benchmark.configRunsPerSort) {
+        benchmark.currentSortIndex = 0;
+        benchmark_prepare_run_baseline();
         benchmark_begin_current_sort();
         return;
     }
@@ -594,20 +654,28 @@ static void draw_benchmark_overlay(void)
 
     DrawText("Benchmark Suite [X]", panelX + 16, panelY + 14, 26, YELLOW);
     DrawText(TextFormat("N=%d  Dist=%s  Sorts=%d", app.arraySize, get_distribution_name(), SORT_REGISTRY_COUNT), panelX + 16, panelY + 44, 20, LIGHTGRAY);
+    DrawText(TextFormat("Config: Runs[-/=]%d  Seed[Z]:%s  Warmup[W]:%s", benchmark.configRunsPerSort, benchmark.configUseFixedSeed ? "ON" : "OFF", benchmark.configWarmup ? "ON" : "OFF"), panelX + 16, panelY + 68, 18, LIGHTGRAY);
+    DrawText(TextFormat("Seed Value [,/.]: %u", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
 
     if (benchmark.running) {
         const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.currentSortIndex].mode);
-        DrawText(TextFormat("Running: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, SORT_REGISTRY_COUNT), panelX + 16, panelY + 70, 20, SKYBLUE);
+        if (benchmark.inWarmup) {
+            DrawText(TextFormat("Running Warmup: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, SORT_REGISTRY_COUNT), panelX + 16, panelY + 114, 20, SKYBLUE);
+        } else {
+            DrawText(TextFormat("Running: %s  run %d/%d  (%d/%d)", runningName, benchmark.currentRunIndex + 1, benchmark.configRunsPerSort, benchmark.currentSortIndex + 1, SORT_REGISTRY_COUNT), panelX + 16, panelY + 114, 20, SKYBLUE);
+        }
     } else {
-        DrawText("Status: Complete", panelX + 16, panelY + 70, 20, SKYBLUE);
+        DrawText("Status: Complete", panelX + 16, panelY + 114, 20, SKYBLUE);
     }
 
-    int tableY = panelY + 102;
+    int tableY = panelY + 146;
     DrawText("Sort", panelX + 16, tableY, 20, YELLOW);
-    DrawText("Time(s)", panelX + 170, tableY, 20, YELLOW);
-    DrawText("Cmp", panelX + 280, tableY, 20, YELLOW);
-    DrawText("Swp", panelX + 400, tableY, 20, YELLOW);
-    DrawText("Steps", panelX + 510, tableY, 20, YELLOW);
+    DrawText("Avg", panelX + 150, tableY, 20, YELLOW);
+    DrawText("Min", panelX + 235, tableY, 20, YELLOW);
+    DrawText("Max", panelX + 320, tableY, 20, YELLOW);
+    DrawText("Cmp", panelX + 405, tableY, 20, YELLOW);
+    DrawText("Swp", panelX + 490, tableY, 20, YELLOW);
+    DrawText("Runs", panelX + 565, tableY, 20, YELLOW);
 
     int rowY = tableY + 28;
     int maxRows = (panelY + panelH - rowY - 26) / 24;
@@ -620,11 +688,18 @@ static void draw_benchmark_overlay(void)
 
     for (int i = 0; i < rowsToDraw; i++) {
         const BenchmarkResult *result = &benchmark.results[i];
+        float avg = (result->runs > 0) ? (result->totalElapsed / (float)result->runs) : 0.0f;
+        float min = (result->runs > 0) ? result->minElapsed : 0.0f;
+        float max = (result->runs > 0) ? result->maxElapsed : 0.0f;
+        unsigned long long avgCmp = (result->runs > 0) ? (result->totalComparisons / (unsigned long long)result->runs) : 0ULL;
+        unsigned long long avgSwp = (result->runs > 0) ? (result->totalSwaps / (unsigned long long)result->runs) : 0ULL;
         DrawText(get_sort_name_by_mode(result->mode), panelX + 16, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%.3f", result->elapsed), panelX + 170, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%llu", result->comparisons), panelX + 280, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%llu", result->swaps), panelX + 400, rowY + i * 24, 20, RAYWHITE);
-        DrawText(TextFormat("%llu", result->steps), panelX + 510, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%.3f", avg), panelX + 150, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%.3f", min), panelX + 235, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%.3f", max), panelX + 320, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%llu", avgCmp), panelX + 405, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%llu", avgSwp), panelX + 490, rowY + i * 24, 20, RAYWHITE);
+        DrawText(TextFormat("%d", result->runs), panelX + 575, rowY + i * 24, 20, RAYWHITE);
     }
 
     if (benchmark.resultCount > rowsToDraw) {
@@ -772,6 +847,11 @@ int main(){
     float baseDelay = 0.05f;
     float stepTimer = 0.0f;
 
+    benchmark.configUseFixedSeed = true;
+    benchmark.configFixedSeed = 1337u;
+    benchmark.configRunsPerSort = 3;
+    benchmark.configWarmup = false;
+
     reset_sort_state(false);
     
     while(!WindowShouldClose() && !app.requestClose){
@@ -817,6 +897,42 @@ int main(){
             .applyArraySize = apply_array_size_callback
         };
         controller_handle_input(&controller, dt);
+
+        if (!benchmark.running && !app.sizeInputActive && !app.pauseMenuActive) {
+            if (IsKeyPressed(KEY_Z)) {
+                benchmark.configUseFixedSeed = !benchmark.configUseFixedSeed;
+                set_status_text(benchmark.configUseFixedSeed ? "Benchmark fixed seed ON" : "Benchmark fixed seed OFF");
+            }
+
+            if (IsKeyPressed(KEY_W)) {
+                benchmark.configWarmup = !benchmark.configWarmup;
+                set_status_text(benchmark.configWarmup ? "Benchmark warmup ON" : "Benchmark warmup OFF");
+            }
+
+            if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
+                benchmark.configRunsPerSort++;
+                if (benchmark.configRunsPerSort > 20) benchmark.configRunsPerSort = 20;
+                set_status_text(TextFormat("Benchmark runs: %d", benchmark.configRunsPerSort));
+            }
+
+            if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
+                benchmark.configRunsPerSort--;
+                if (benchmark.configRunsPerSort < 1) benchmark.configRunsPerSort = 1;
+                set_status_text(TextFormat("Benchmark runs: %d", benchmark.configRunsPerSort));
+            }
+
+            if (IsKeyPressed(KEY_PERIOD)) {
+                benchmark.configFixedSeed += 1u;
+                set_status_text(TextFormat("Benchmark seed: %u", benchmark.configFixedSeed));
+            }
+
+            if (IsKeyPressed(KEY_COMMA)) {
+                if (benchmark.configFixedSeed > 0u) {
+                    benchmark.configFixedSeed -= 1u;
+                }
+                set_status_text(TextFormat("Benchmark seed: %u", benchmark.configFixedSeed));
+            }
+        }
 
         if (!app.sizeInputActive && !app.pauseMenuActive && IsKeyPressed(KEY_X)) {
             if (benchmark.running) {

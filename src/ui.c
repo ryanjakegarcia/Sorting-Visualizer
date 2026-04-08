@@ -361,6 +361,7 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 530, 20, LIGHTGRAY);
         DrawText("[ / ]: Master Volume", 20, infoY + 555, 20, LIGHTGRAY);
         DrawText("X: Benchmark Suite", 20, infoY + 580, 20, LIGHTGRAY);
+        DrawText("Benchmark cfg: Z seed on/off, W warmup, -/+ runs, ,/. seed", 20, infoY + 605, 20, LIGHTGRAY);
     }
 
     if (ctx->pauseMenuActive) {
