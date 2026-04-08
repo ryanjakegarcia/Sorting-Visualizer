@@ -29,6 +29,11 @@ static int mergeBuffer[MAX_SIZE];
 static int timBuffer[MAX_SIZE];
 static int radixBuffer[MAX_SIZE];
 static int radixCount[2];
+static int countingOutput[MAX_SIZE];
+static int countingCounts[MAX_SIZE + 1];
+static int introStackLow[MAX_SIZE];
+static int introStackHigh[MAX_SIZE];
+static int introStackDepth[MAX_SIZE];
 
 static const float masterVolumeStep = 0.05f;
 static const float autoNextSortDelay = 3.0f;
@@ -73,6 +78,10 @@ static void run_comb_step(void);
 static void run_timsort_step(void);
 static void run_radixsort_step(void);
 static void run_bogosort_step(void);
+static void run_odd_even_step(void);
+static void run_pancake_step(void);
+static void run_counting_step(void);
+static void run_introsort_step(void);
 static void reset_bubble_state(void);
 static void reset_insertion_state(void);
 static void reset_selection_state(void);
@@ -86,6 +95,10 @@ static void reset_comb_state(void);
 static void reset_timsort_state(void);
 static void reset_radixsort_state(void);
 static void reset_bogosort_state(void);
+static void reset_odd_even_state(void);
+static void reset_pancake_state(void);
+static void reset_counting_state(void);
+static void reset_introsort_state(void);
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_insertion_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_selection_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
@@ -99,6 +112,10 @@ static void fill_comb_telemetry(char *line1, size_t line1Size, char *line2, size
 static void fill_timsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_radixsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_bogosort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_odd_even_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_pancake_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_counting_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_introsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static Color color_from_id(int colorId);
 
@@ -115,7 +132,11 @@ static const SortDescriptor sortRegistry[] = {
     { SORT_COMB, "Comb", run_comb_step, reset_comb_state, fill_comb_telemetry, COLOR_ID_BLUE, COLOR_ID_GOLD, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE },
     { SORT_TIMSORT, "Timsort", run_timsort_step, reset_timsort_state, fill_timsort_telemetry, COLOR_ID_MAGENTA, COLOR_ID_PINK, COLOR_ID_RED, COLOR_ID_SKYBLUE },
     { SORT_RADIXSORT, "Radixsort", run_radixsort_step, reset_radixsort_state, fill_radixsort_telemetry, COLOR_ID_GOLD, COLOR_ID_MAROON, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
-    { SORT_BOGOSORT, "Bogosort", run_bogosort_step, reset_bogosort_state, fill_bogosort_telemetry, COLOR_ID_PINK, COLOR_ID_MAGENTA, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE }
+    { SORT_BOGOSORT, "Bogosort", run_bogosort_step, reset_bogosort_state, fill_bogosort_telemetry, COLOR_ID_PINK, COLOR_ID_MAGENTA, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE },
+    { SORT_ODD_EVEN, "Odd-Even", run_odd_even_step, reset_odd_even_state, fill_odd_even_telemetry, COLOR_ID_ORANGE, COLOR_ID_RED, COLOR_ID_GOLD, COLOR_ID_SKYBLUE },
+    { SORT_PANCAKE, "Pancake", run_pancake_step, reset_pancake_state, fill_pancake_telemetry, COLOR_ID_GOLD, COLOR_ID_ORANGE, COLOR_ID_RED, COLOR_ID_SKYBLUE },
+    { SORT_COUNTING, "Counting", run_counting_step, reset_counting_state, fill_counting_telemetry, COLOR_ID_BLUE, COLOR_ID_SKYBLUE, COLOR_ID_GOLD, COLOR_ID_ORANGE },
+    { SORT_INTROSORT, "Introsort", run_introsort_step, reset_introsort_state, fill_introsort_telemetry, COLOR_ID_RED, COLOR_ID_ORANGE, COLOR_ID_PINK, COLOR_ID_SKYBLUE }
 };
 
 #define SORT_REGISTRY_COUNT ((int)(sizeof(sortRegistry) / sizeof(sortRegistry[0])))
@@ -155,6 +176,7 @@ typedef struct BenchmarkState {
 } BenchmarkState;
 
 static BenchmarkState benchmark = { 0 };
+static bool splashPreviewMuted = false;
 
 static void init_numbers_sequential(void);
 static const char *get_sort_name_by_mode(SortMode mode);
@@ -168,6 +190,7 @@ static int benchmark_build_sequence(void);
 static bool benchmark_export_results_csv(void);
 static void benchmark_build_display_order(int *order, int count);
 static void draw_benchmark_overlay(void);
+static void draw_start_screen(float pulseTime);
 
 static void set_status_text(const char *text)
 {
@@ -442,6 +465,73 @@ static void reset_comb_state(void)
     app.combSwapped = false;
 }
 
+static int compute_intro_depth_limit(int n)
+{
+    int depth = 0;
+    while (n > 1) {
+        n >>= 1;
+        depth++;
+    }
+    return depth * 2;
+}
+
+static void reset_odd_even_state(void)
+{
+    app.oddEvenIndex = 0;
+    app.oddEvenStart = 0;
+    app.oddEvenSwappedThisRound = false;
+}
+
+static void reset_pancake_state(void)
+{
+    app.pancakeCurrentSize = app.arraySize;
+    app.pancakePhase = 0;
+    app.pancakeMaxIndex = 0;
+    app.pancakeScanIndex = 1;
+    app.pancakeFlipIndex = 0;
+}
+
+static void reset_counting_state(void)
+{
+    memset(countingOutput, 0, sizeof(countingOutput));
+    memset(countingCounts, 0, sizeof(countingCounts));
+    app.countingPhase = 0;
+    app.countingIndex = 0;
+    app.countingMinValue = 0;
+    app.countingMaxValue = 0;
+    app.countingWriteValue = 0;
+    app.countingWriteIndex = 0;
+}
+
+static void reset_introsort_state(void)
+{
+    app.introTop = -1;
+    app.introLow = 0;
+    app.introHigh = app.arraySize - 1;
+    app.introPivotValue = 0;
+    app.introPivotIndex = -1;
+    app.introI = -1;
+    app.introJ = -1;
+    app.introDepthLimit = compute_intro_depth_limit(app.arraySize);
+    app.introPartitionActive = false;
+    app.introHeapFallbackActive = false;
+    app.introHeapBuildIndex = (app.arraySize / 2) - 1;
+    app.introHeapSortEnd = app.arraySize - 1;
+    app.introHeapSiftRoot = 0;
+    app.introHeapSiftEnd = 0;
+    app.introHeapFocusIndex = -1;
+    app.introHeapCandidateIndex = -1;
+    app.introHeapBuilding = true;
+    app.introHeapSiftActive = false;
+
+    if (app.arraySize > 1) {
+        app.introTop = 0;
+        introStackLow[0] = 0;
+        introStackHigh[0] = app.arraySize - 1;
+        introStackDepth[0] = app.introDepthLimit;
+    }
+}
+
 static void reset_sort_state(bool reshuffle)
 {
     app.sortingDone = false;
@@ -529,17 +619,17 @@ static void apply_array_size_callback(int newSize, bool usedDefault)
 
 static void play_swap_sound(int firstValue, int secondValue, int leftIndex, int rightIndex)
 {
-    audio_play_swap(&app.audio, app.swapAudioEnabled, app.arraySize, firstValue, secondValue, leftIndex, rightIndex);
+    audio_play_swap(&app.audio, (!splashPreviewMuted) && app.swapAudioEnabled, app.arraySize, firstValue, secondValue, leftIndex, rightIndex);
 }
 
 static void play_compare_sound(int firstValue, int secondValue, int leftIndex, int rightIndex)
 {
-    audio_play_compare(&app.audio, app.compareAudioEnabled, app.arraySize, firstValue, secondValue, leftIndex, rightIndex);
+    audio_play_compare(&app.audio, (!splashPreviewMuted) && app.compareAudioEnabled, app.arraySize, firstValue, secondValue, leftIndex, rightIndex);
 }
 
 static void play_sorted_sound(void)
 {
-    audio_play_sorted(&app.audio, app.progressAudioEnabled);
+    audio_play_sorted(&app.audio, (!splashPreviewMuted) && app.progressAudioEnabled);
 }
 
 static int get_sort_index(SortMode mode)
@@ -978,9 +1068,37 @@ static void draw_benchmark_overlay(void)
     }
 }
 
+static void draw_start_screen(float pulseTime)
+{
+    float pulse = 0.55f + 0.45f * (sinf(pulseTime * 2.2f) * 0.5f + 0.5f);
+    int cardW = 920;
+    int cardH = 520;
+    int cardX = (WIDTH - cardW) / 2;
+    int cardY = (HEIGHT - cardH) / 2;
+
+    DrawRectangleGradientV(0, 0, WIDTH, HEIGHT, (Color){ 10, 16, 28, 120 }, (Color){ 5, 8, 14, 140 });
+
+    DrawCircle(WIDTH - 180, 120, 220.0f, Fade(SKYBLUE, 0.07f));
+    DrawCircle(180, HEIGHT - 140, 200.0f, Fade(ORANGE, 0.06f));
+
+    DrawRectangle(cardX, cardY, cardW, cardH, Fade(BLACK, 0.72f));
+    DrawRectangleLinesEx((Rectangle){ (float)cardX, (float)cardY, (float)cardW, (float)cardH }, 2.0f, Fade(SKYBLUE, 0.85f));
+
+    DrawText("SORTING VISUALIZER", cardX + 56, cardY + 58, 64, RAYWHITE);
+    DrawText("Interactive algorithm visuals, audio cues, and benchmark tooling", cardX + 60, cardY + 132, 24, LIGHTGRAY);
+
+    DrawText("Hotkeys", cardX + 60, cardY + 196, 28, SKYBLUE);
+    DrawText("TAB: Cycle sort      D: Cycle distribution      R: Reshuffle", cardX + 60, cardY + 236, 24, LIGHTGRAY);
+    DrawText("M/N: Step mode       SPACE: Pause menu           X: Benchmark", cardX + 60, cardY + 272, 24, LIGHTGRAY);
+    DrawText("V/L/H/G/T/B/U: UI toggles       [ / ]: Master volume", cardX + 60, cardY + 308, 24, LIGHTGRAY);
+
+    DrawText("Press ENTER, SPACE, or LEFT CLICK to start", cardX + 60, cardY + 392, 34, Fade(YELLOW, pulse));
+    DrawText("ESC closes the app", cardX + 60, cardY + 438, 24, LIGHTGRAY);
+}
+
 static void start_completion_sweep(void)
 {
-    audio_start_completion_sweep(&app.audio, app.finishAudioEnabled, app.arraySize);
+    audio_start_completion_sweep(&app.audio, (!splashPreviewMuted) && app.finishAudioEnabled, app.arraySize);
 }
 
 static void update_completion_sweep(float dt)
@@ -1036,6 +1154,26 @@ static void run_gnome_step(void)
 static void run_comb_step(void)
 {
     comb_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.combGap, &app.combIndex, &app.combSwapped, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_odd_even_step(void)
+{
+    odd_even_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.oddEvenIndex, &app.oddEvenStart, &app.oddEvenSwappedThisRound, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_pancake_step(void)
+{
+    pancake_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.pancakeCurrentSize, &app.pancakePhase, &app.pancakeMaxIndex, &app.pancakeScanIndex, &app.pancakeFlipIndex, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_counting_step(void)
+{
+    counting_sort_step(numbers, countingOutput, countingCounts, knownSorted, app.arraySize, &app.sortingDone, &app.countingPhase, &app.countingIndex, &app.countingMinValue, &app.countingMaxValue, &app.countingWriteValue, &app.countingWriteIndex, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_introsort_step(void)
+{
+    introsort_step(numbers, knownSorted, introStackLow, introStackHigh, introStackDepth, MAX_SIZE, app.arraySize, &app.sortingDone, &app.introTop, &app.introLow, &app.introHigh, &app.introPivotValue, &app.introPivotIndex, &app.introI, &app.introJ, &app.introDepthLimit, &app.introPartitionActive, &app.introHeapFallbackActive, &app.introHeapBuildIndex, &app.introHeapSortEnd, &app.introHeapSiftRoot, &app.introHeapSiftEnd, &app.introHeapFocusIndex, &app.introHeapCandidateIndex, &app.introHeapBuilding, &app.introHeapSiftActive, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
 }
 
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
@@ -1187,6 +1325,47 @@ static void fill_bogosort_telemetry(char *line1, size_t line1Size, char *line2, 
     }
 }
 
+static void fill_odd_even_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Pass: %s pairs", app.oddEvenStart == 0 ? "EVEN" : "ODD");
+    snprintf(line2, line2Size, "Pair: [%d, %d]", app.oddEvenIndex, app.oddEvenIndex + 1);
+    snprintf(line3, line3Size, "Swapped this round: %s", app.oddEvenSwappedThisRound ? "yes" : "no");
+}
+
+static void fill_pancake_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    const char *phase = "FIND MAX";
+    if (app.pancakePhase == 1) phase = "FLIP TO FRONT";
+    if (app.pancakePhase == 2) phase = "FLIP TO TARGET";
+    snprintf(line1, line1Size, "Phase: %s  active size: %d", phase, app.pancakeCurrentSize);
+    snprintf(line2, line2Size, "Max idx: %d  scan idx: %d", app.pancakeMaxIndex, app.pancakeScanIndex);
+    snprintf(line3, line3Size, "Flip step: %d", app.pancakeFlipIndex);
+}
+
+static void fill_counting_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    const char *phase = "SCAN";
+    if (app.countingPhase == 1) phase = "BUILD OUTPUT";
+    if (app.countingPhase == 2) phase = "COPY BACK";
+    snprintf(line1, line1Size, "Phase: %s", phase);
+    snprintf(line2, line2Size, "Range: %d..%d  index: %d", app.countingMinValue, app.countingMaxValue, app.countingIndex);
+    snprintf(line3, line3Size, "Output write value/index: %d / %d", app.countingWriteValue, app.countingWriteIndex);
+}
+
+static void fill_introsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    if (app.introHeapFallbackActive) {
+        snprintf(line1, line1Size, "Phase: HEAP FALLBACK (global)");
+        snprintf(line2, line2Size, "Heap end: %d  building: %s", app.introHeapSortEnd, app.introHeapBuilding ? "yes" : "no");
+        snprintf(line3, line3Size, "Focus/candidate: %d / %d", app.introHeapFocusIndex, app.introHeapCandidateIndex);
+        return;
+    }
+
+    snprintf(line1, line1Size, "Range: [%d, %d] depth: %d", app.introLow, app.introHigh, app.introDepthLimit);
+    snprintf(line2, line2Size, "Pivot idx/value: %d / %d", app.introPivotIndex, app.introPivotValue);
+    snprintf(line3, line3Size, "i:%d  j:%d  stack:%d", app.introI, app.introJ, app.introTop + 1);
+}
+
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
 {
     int index = get_sort_index(app.currentSort);
@@ -1231,6 +1410,7 @@ int main(){
     float speedStep = 0.1f;
     float baseDelay = 0.05f;
     float stepTimer = 0.0f;
+    bool showStartScreen = true;
 
     benchmark.configUseFixedSeed = true;
     benchmark.configFixedSeed = 1337u;
@@ -1247,6 +1427,135 @@ int main(){
     while(!WindowShouldClose() && !app.requestClose){
         float dt = GetFrameTime();
         audio_begin_frame(&app.audio);
+
+        if (showStartScreen) {
+            splashPreviewMuted = true;
+            app.paused = false;
+            app.pauseMenuActive = false;
+            app.sizeInputActive = false;
+            app.stepMode = false;
+            app.stepOnceRequested = false;
+
+            stepTimer += dt;
+            float splashAnimationDelay = baseDelay / 2.0f;
+            while (stepTimer >= splashAnimationDelay && !app.sortingDone) {
+                run_current_sort_step();
+                stepTimer -= splashAnimationDelay;
+            }
+
+            if (app.sortingDone && !audio_completion_sweep_active(&app.audio)) {
+                app.autoNextSortTimer += dt;
+                if (app.autoNextSortTimer >= 0.9f) {
+                    cycle_sort_mode();
+                    stepTimer = 0.0f;
+                }
+            }
+
+            update_completion_sweep(dt);
+
+            int splashSortIndex = get_sort_index(app.currentSort);
+            if (splashSortIndex < 0) {
+                splashSortIndex = 0;
+            }
+
+            UiDrawContext splashUi = {
+                .sortColorA = color_from_id(sortRegistry[splashSortIndex].colorAId),
+                .sortColorB = color_from_id(sortRegistry[splashSortIndex].colorBId),
+                .sortColorC = color_from_id(sortRegistry[splashSortIndex].colorCId),
+                .sortColorD = color_from_id(sortRegistry[splashSortIndex].colorDId),
+                .width = WIDTH,
+                .height = HEIGHT,
+                .maxSize = MAX_SIZE,
+                .arraySize = app.arraySize,
+                .numbers = numbers,
+                .knownSorted = knownSorted,
+                .currentSort = app.currentSort,
+                .sortingDone = app.sortingDone,
+                .completionSweepActive = audio_completion_sweep_active(&app.audio),
+                .completionSweepIndex = audio_completion_sweep_index(&app.audio),
+                .quickPivotIndex = app.quickPivotIndex,
+                .quickJ = app.quickJ,
+                .quickI = app.quickI,
+                .heapCandidateIndex = app.heapCandidateIndex,
+                .heapFocusIndex = app.heapFocusIndex,
+                .bubbleIndex = app.bubbleIndex,
+                .insertionPos = app.insertionPos,
+                .selectionMin = app.selectionMin,
+                .selectionJ = app.selectionJ,
+                .bubblePass = app.bubblePass,
+                .insertionIndex = app.insertionIndex,
+                .selectionI = app.selectionI,
+                .heapSortEnd = app.heapSortEnd,
+                .heapBuilding = app.heapBuilding,
+                .shellGap = app.shellGap,
+                .shellJ = app.shellJ,
+                .shellHolding = app.shellHolding,
+                .mergeI = app.mergeI,
+                .mergeJ = app.mergeJ,
+                .mergeK = app.mergeK,
+                .mergeCopyIndex = app.mergeCopyIndex,
+                .mergeActive = app.mergeActive,
+                .mergeCopying = app.mergeCopying,
+                .cocktailIndex = app.cocktailIndex,
+                .cocktailForward = app.cocktailForward,
+                .gnomeIndex = app.gnomeIndex,
+                .combGap = app.combGap,
+                .combIndex = app.combIndex,
+                .timRunSize = app.timRunSize,
+                .timLeft = app.timLeft,
+                .timMid = app.timMid,
+                .timRight = app.timRight,
+                .timSortIndex = app.timSortIndex,
+                .timInsertActive = app.timInsertActive,
+                .timMergeActive = app.timMergeActive,
+                .radixIndex = app.radixIndex,
+                .bogoAttempts = app.bogoAttempts,
+                .bogoCheckIndex = app.bogoCheckIndex,
+                .bogoIsChecking = app.bogoIsChecking,
+                .oddEvenIndex = app.oddEvenIndex,
+                .pancakeCurrentSize = app.pancakeCurrentSize,
+                .pancakePhase = app.pancakePhase,
+                .pancakeMaxIndex = app.pancakeMaxIndex,
+                .pancakeScanIndex = app.pancakeScanIndex,
+                .countingPhase = app.countingPhase,
+                .countingIndex = app.countingIndex,
+                .introPivotIndex = app.introPivotIndex,
+                .introI = app.introI,
+                .introJ = app.introJ,
+                .introHeapFallbackActive = app.introHeapFallbackActive,
+                .introHeapFocusIndex = app.introHeapFocusIndex,
+                .introHeapCandidateIndex = app.introHeapCandidateIndex,
+                .showValues = false,
+                .showHud = false,
+                .showSettingsOverlay = false,
+                .showTelemetry = false,
+                .showSizeInputBox = false,
+                .showLegend = false,
+                .paused = false,
+                .pauseMenuActive = false,
+                .minimalUiMode = true,
+                .showInfo = false,
+                .benchmarkRunning = false
+            };
+
+            BeginDrawing();
+            SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+            ClearBackground(BLACK);
+            draw_elements(&splashUi);
+            draw_start_screen((float)GetTime());
+            EndDrawing();
+
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                showStartScreen = false;
+                splashPreviewMuted = false;
+                stepTimer = 0.0f;
+                reset_completion_effects();
+            }
+
+            continue;
+        }
+
+        splashPreviewMuted = false;
 
         ControllerContext controller = {
             .windowWidth = WIDTH,
@@ -1624,6 +1933,31 @@ int main(){
             .bogoAttempts = app.bogoAttempts,
             .bogoCheckIndex = app.bogoCheckIndex,
             .bogoIsChecking = app.bogoIsChecking,
+            .oddEvenIndex = app.oddEvenIndex,
+            .oddEvenStart = app.oddEvenStart,
+            .oddEvenSwappedThisRound = app.oddEvenSwappedThisRound,
+            .pancakeCurrentSize = app.pancakeCurrentSize,
+            .pancakePhase = app.pancakePhase,
+            .pancakeMaxIndex = app.pancakeMaxIndex,
+            .pancakeScanIndex = app.pancakeScanIndex,
+            .pancakeFlipIndex = app.pancakeFlipIndex,
+            .countingPhase = app.countingPhase,
+            .countingIndex = app.countingIndex,
+            .countingMinValue = app.countingMinValue,
+            .countingMaxValue = app.countingMaxValue,
+            .countingWriteValue = app.countingWriteValue,
+            .countingWriteIndex = app.countingWriteIndex,
+            .introPivotIndex = app.introPivotIndex,
+            .introI = app.introI,
+            .introJ = app.introJ,
+            .introLow = app.introLow,
+            .introHigh = app.introHigh,
+            .introTop = app.introTop,
+            .introDepthLimit = app.introDepthLimit,
+            .introPartitionActive = app.introPartitionActive,
+            .introHeapFallbackActive = app.introHeapFallbackActive,
+            .introHeapFocusIndex = app.introHeapFocusIndex,
+            .introHeapCandidateIndex = app.introHeapCandidateIndex,
             .showValues = app.showValues,
             .showHud = app.showHud,
             .showSettingsOverlay = app.showSettingsOverlay,

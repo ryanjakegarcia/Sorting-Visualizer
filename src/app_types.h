@@ -14,7 +14,11 @@ typedef enum SortMode {
     SORT_COMB,
     SORT_TIMSORT,
     SORT_RADIXSORT,
-    SORT_BOGOSORT
+    SORT_BOGOSORT,
+    SORT_ODD_EVEN,
+    SORT_PANCAKE,
+    SORT_COUNTING,
+    SORT_INTROSORT
 } SortMode;
 
 typedef enum DistributionMode {

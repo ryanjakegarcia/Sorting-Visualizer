@@ -1,5 +1,6 @@
 #include "sorts.h"
 #include <stdlib.h>
+#include <string.h>
 
 static void mark_all_sorted(bool *knownSorted, int arraySize)
 {
@@ -1129,6 +1130,27 @@ static int random_range(int min, int max)
     return min + (rand() % (max - min + 1));
 }
 
+static void introsort_push_range(
+    int low,
+    int high,
+    int depth,
+    int *introStackLow,
+    int *introStackHigh,
+    int *introStackDepth,
+    int *introTop,
+    int introStackCapacity
+)
+{
+    if (*introTop >= introStackCapacity - 1) {
+        return;
+    }
+
+    (*introTop)++;
+    introStackLow[*introTop] = low;
+    introStackHigh[*introTop] = high;
+    introStackDepth[*introTop] = depth;
+}
+
 void bogosort_step(
     int *numbers,
     bool *knownSorted,
@@ -1199,4 +1221,441 @@ void bogosort_step(
     *sortingDone = true;
     mark_all_sorted(knownSorted, arraySize);
     startCompletionSweep();
+}
+
+void odd_even_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *oddEvenIndex,
+    int *oddEvenStart,
+    bool *oddEvenSwappedThisRound,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        *oddEvenIndex = 0;
+        *oddEvenStart = 0;
+        *oddEvenSwappedThisRound = false;
+        startCompletionSweep();
+        return;
+    }
+
+    if (*oddEvenIndex + 1 < arraySize) {
+        int leftIndex = *oddEvenIndex;
+        int rightIndex = leftIndex + 1;
+        int left = numbers[leftIndex];
+        int right = numbers[rightIndex];
+        (*statComparisons)++;
+        playCompareSound(left, right, leftIndex, rightIndex);
+
+        if (left > right) {
+            numbers[leftIndex] = right;
+            numbers[rightIndex] = left;
+            (*statSwaps)++;
+            *oddEvenSwappedThisRound = true;
+            playSwapSound(left, right, leftIndex, rightIndex);
+        }
+
+        *oddEvenIndex += 2;
+        return;
+    }
+
+    if (*oddEvenStart == 1) {
+        if (!*oddEvenSwappedThisRound) {
+            *sortingDone = true;
+            mark_all_sorted(knownSorted, arraySize);
+            *oddEvenIndex = 0;
+            *oddEvenStart = 0;
+            startCompletionSweep();
+            return;
+        }
+
+        *oddEvenSwappedThisRound = false;
+        *oddEvenStart = 0;
+    } else {
+        *oddEvenStart = 1;
+    }
+
+    *oddEvenIndex = *oddEvenStart;
+    playSortedSound();
+}
+
+void pancake_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *pancakeCurrentSize,
+    int *pancakePhase,
+    int *pancakeMaxIndex,
+    int *pancakeScanIndex,
+    int *pancakeFlipIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (*pancakeCurrentSize <= 1 || arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        *pancakePhase = 0;
+        *pancakeFlipIndex = 0;
+        startCompletionSweep();
+        return;
+    }
+
+    if (*pancakePhase == 0) {
+        if (*pancakeScanIndex < *pancakeCurrentSize) {
+            (*statComparisons)++;
+            playCompareSound(numbers[*pancakeScanIndex], numbers[*pancakeMaxIndex], *pancakeScanIndex, *pancakeMaxIndex);
+            if (numbers[*pancakeScanIndex] > numbers[*pancakeMaxIndex]) {
+                *pancakeMaxIndex = *pancakeScanIndex;
+            }
+            (*pancakeScanIndex)++;
+            return;
+        }
+
+        if (*pancakeMaxIndex == *pancakeCurrentSize - 1) {
+            knownSorted[*pancakeCurrentSize - 1] = true;
+            (*pancakeCurrentSize)--;
+            *pancakeMaxIndex = 0;
+            *pancakeScanIndex = 1;
+            *pancakeFlipIndex = 0;
+            *pancakePhase = 0;
+            playSortedSound();
+            return;
+        }
+
+        if (*pancakeMaxIndex > 0) {
+            *pancakePhase = 1;
+            *pancakeFlipIndex = 0;
+            return;
+        }
+
+        *pancakePhase = 2;
+        *pancakeFlipIndex = 0;
+        return;
+    }
+
+    if (*pancakePhase == 1 || *pancakePhase == 2) {
+        int end = (*pancakePhase == 1) ? *pancakeMaxIndex : (*pancakeCurrentSize - 1);
+        int half = (end + 1) / 2;
+        if (*pancakeFlipIndex < half) {
+            int leftIndex = *pancakeFlipIndex;
+            int rightIndex = end - *pancakeFlipIndex;
+            int left = numbers[leftIndex];
+            int right = numbers[rightIndex];
+            numbers[leftIndex] = right;
+            numbers[rightIndex] = left;
+            (*statSwaps)++;
+            playSwapSound(left, right, leftIndex, rightIndex);
+            (*pancakeFlipIndex)++;
+            return;
+        }
+
+        if (*pancakePhase == 1) {
+            *pancakePhase = 2;
+            *pancakeFlipIndex = 0;
+            return;
+        }
+
+        knownSorted[*pancakeCurrentSize - 1] = true;
+        (*pancakeCurrentSize)--;
+        *pancakePhase = 0;
+        *pancakeMaxIndex = 0;
+        *pancakeScanIndex = 1;
+        *pancakeFlipIndex = 0;
+        playSortedSound();
+    }
+}
+
+void counting_sort_step(
+    int *numbers,
+    int *countingOutput,
+    int *countingCounts,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *countingPhase,
+    int *countingIndex,
+    int *countingMinValue,
+    int *countingMaxValue,
+    int *countingWriteValue,
+    int *countingWriteIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    if (*countingPhase == 0) {
+        if (*countingIndex < arraySize) {
+            int value = numbers[*countingIndex];
+            if (value < 1) value = 1;
+            if (value > arraySize) value = arraySize;
+
+            if (*countingIndex == 0) {
+                *countingMinValue = value;
+                *countingMaxValue = value;
+            } else {
+                (*statComparisons)++;
+                playCompareSound(value, *countingMinValue, *countingIndex, *countingIndex);
+                if (value < *countingMinValue) {
+                    *countingMinValue = value;
+                }
+
+                (*statComparisons)++;
+                playCompareSound(value, *countingMaxValue, *countingIndex, *countingIndex);
+                if (value > *countingMaxValue) {
+                    *countingMaxValue = value;
+                }
+            }
+
+            countingCounts[value]++;
+            playCompareSound(value, value, *countingIndex, *countingIndex);
+            (*countingIndex)++;
+            return;
+        }
+
+        *countingPhase = 1;
+        *countingWriteValue = *countingMinValue;
+        *countingWriteIndex = 0;
+        playSortedSound();
+        return;
+    }
+
+    if (*countingPhase == 1) {
+        while (*countingWriteValue <= *countingMaxValue && countingCounts[*countingWriteValue] == 0) {
+            (*countingWriteValue)++;
+        }
+
+        if (*countingWriteValue > *countingMaxValue || *countingWriteIndex >= arraySize) {
+            *countingPhase = 2;
+            *countingIndex = 0;
+            playSortedSound();
+            return;
+        }
+
+        countingOutput[*countingWriteIndex] = *countingWriteValue;
+        countingCounts[*countingWriteValue]--;
+        (*countingWriteIndex)++;
+        return;
+    }
+
+    if (*countingIndex < arraySize) {
+        int oldValue = numbers[*countingIndex];
+        numbers[*countingIndex] = countingOutput[*countingIndex];
+        knownSorted[*countingIndex] = true;
+        (*statSwaps)++;
+        playSwapSound(oldValue, numbers[*countingIndex], *countingIndex, *countingIndex);
+
+        if (((*countingIndex + 1) % 16) == 0 || *countingIndex == arraySize - 1) {
+            playSortedSound();
+        }
+
+        (*countingIndex)++;
+        return;
+    }
+
+    *sortingDone = true;
+    mark_all_sorted(knownSorted, arraySize);
+    startCompletionSweep();
+}
+
+void introsort_step(
+    int *numbers,
+    bool *knownSorted,
+    int *introStackLow,
+    int *introStackHigh,
+    int *introStackDepth,
+    int introStackCapacity,
+    int arraySize,
+    bool *sortingDone,
+    int *introTop,
+    int *introLow,
+    int *introHigh,
+    int *introPivotValue,
+    int *introPivotIndex,
+    int *introI,
+    int *introJ,
+    int *introDepthLimit,
+    bool *introPartitionActive,
+    bool *introHeapFallbackActive,
+    int *introHeapBuildIndex,
+    int *introHeapSortEnd,
+    int *introHeapSiftRoot,
+    int *introHeapSiftEnd,
+    int *introHeapFocusIndex,
+    int *introHeapCandidateIndex,
+    bool *introHeapBuilding,
+    bool *introHeapSiftActive,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (*introHeapFallbackActive) {
+        heap_sort_step(
+            numbers,
+            knownSorted,
+            arraySize,
+            sortingDone,
+            introHeapBuildIndex,
+            introHeapSortEnd,
+            introHeapSiftRoot,
+            introHeapSiftEnd,
+            introHeapFocusIndex,
+            introHeapCandidateIndex,
+            introHeapBuilding,
+            introHeapSiftActive,
+            statComparisons,
+            statSwaps,
+            playCompareSound,
+            playSwapSound,
+            playSortedSound,
+            startCompletionSweep
+        );
+        return;
+    }
+
+    if (!*introPartitionActive) {
+        while (*introTop >= 0) {
+            int low = introStackLow[*introTop];
+            int high = introStackHigh[*introTop];
+            int depth = introStackDepth[*introTop];
+            (*introTop)--;
+
+            if (low >= high) {
+                if (low == high) {
+                    knownSorted[low] = true;
+                }
+                continue;
+            }
+
+            if (depth <= 0) {
+                *introHeapFallbackActive = true;
+                *introPartitionActive = false;
+                *introPivotIndex = -1;
+                *introI = -1;
+                *introJ = -1;
+                *introHeapBuildIndex = (arraySize / 2) - 1;
+                *introHeapSortEnd = arraySize - 1;
+                *introHeapSiftRoot = 0;
+                *introHeapSiftEnd = 0;
+                *introHeapFocusIndex = -1;
+                *introHeapCandidateIndex = -1;
+                *introHeapBuilding = true;
+                *introHeapSiftActive = false;
+                return;
+            }
+
+            *introLow = low;
+            *introHigh = high;
+            *introDepthLimit = depth;
+            *introPivotValue = numbers[high];
+            *introPivotIndex = high;
+            *introI = low - 1;
+            *introJ = low;
+            *introPartitionActive = true;
+            return;
+        }
+
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        *introPivotIndex = -1;
+        *introI = -1;
+        *introJ = -1;
+        startCompletionSweep();
+        return;
+    }
+
+    if (*introJ < *introHigh) {
+        (*statComparisons)++;
+        playCompareSound(numbers[*introJ], *introPivotValue, *introJ, *introPivotIndex);
+
+        if (numbers[*introJ] < *introPivotValue) {
+            (*introI)++;
+            if (*introI != *introJ) {
+                int left = numbers[*introI];
+                int right = numbers[*introJ];
+                numbers[*introI] = right;
+                numbers[*introJ] = left;
+                (*statSwaps)++;
+                playSwapSound(left, right, *introI, *introJ);
+            }
+        }
+
+        (*introJ)++;
+        return;
+    }
+
+    int pivotPos = *introI + 1;
+    if (pivotPos != *introHigh) {
+        int left = numbers[pivotPos];
+        int right = numbers[*introHigh];
+        numbers[pivotPos] = right;
+        numbers[*introHigh] = left;
+        (*statSwaps)++;
+        playSwapSound(left, right, pivotPos, *introHigh);
+    }
+    knownSorted[pivotPos] = true;
+    playSortedSound();
+
+    int nextDepth = *introDepthLimit - 1;
+    int leftLow = *introLow;
+    int leftHigh = pivotPos - 1;
+    int rightLow = pivotPos + 1;
+    int rightHigh = *introHigh;
+
+    if (leftLow < leftHigh) {
+        introsort_push_range(leftLow, leftHigh, nextDepth, introStackLow, introStackHigh, introStackDepth, introTop, introStackCapacity);
+    }
+    if (rightLow < rightHigh) {
+        introsort_push_range(rightLow, rightHigh, nextDepth, introStackLow, introStackHigh, introStackDepth, introTop, introStackCapacity);
+    }
+
+    *introPartitionActive = false;
+    *introPivotIndex = -1;
+    *introI = -1;
+    *introJ = -1;
 }

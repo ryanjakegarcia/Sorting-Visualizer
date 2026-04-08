@@ -253,4 +253,94 @@ void bogosort_step(
     CompletionSweepFn startCompletionSweep
 );
 
+void odd_even_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *oddEvenIndex,
+    int *oddEvenStart,
+    bool *oddEvenSwappedThisRound,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
+void pancake_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *pancakeCurrentSize,
+    int *pancakePhase,
+    int *pancakeMaxIndex,
+    int *pancakeScanIndex,
+    int *pancakeFlipIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
+void counting_sort_step(
+    int *numbers,
+    int *countingOutput,
+    int *countingCounts,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *countingPhase,
+    int *countingIndex,
+    int *countingMinValue,
+    int *countingMaxValue,
+    int *countingWriteValue,
+    int *countingWriteIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
+void introsort_step(
+    int *numbers,
+    bool *knownSorted,
+    int *introStackLow,
+    int *introStackHigh,
+    int *introStackDepth,
+    int introStackCapacity,
+    int arraySize,
+    bool *sortingDone,
+    int *introTop,
+    int *introLow,
+    int *introHigh,
+    int *introPivotValue,
+    int *introPivotIndex,
+    int *introI,
+    int *introJ,
+    int *introDepthLimit,
+    bool *introPartitionActive,
+    bool *introHeapFallbackActive,
+    int *introHeapBuildIndex,
+    int *introHeapSortEnd,
+    int *introHeapSiftRoot,
+    int *introHeapSiftEnd,
+    int *introHeapFocusIndex,
+    int *introHeapCandidateIndex,
+    bool *introHeapBuilding,
+    bool *introHeapSiftActive,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
 #endif
