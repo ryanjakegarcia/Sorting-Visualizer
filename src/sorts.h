@@ -101,4 +101,22 @@ void quick_sort_step(
     CompletionSweepFn startCompletionSweep
 );
 
+void shell_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *shellGap,
+    int *shellI,
+    int *shellJ,
+    int *shellTemp,
+    bool *shellHolding,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
 #endif

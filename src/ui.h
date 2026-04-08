@@ -43,11 +43,18 @@ typedef struct UiDrawContext {
 
     bool insertionHoldingKey;
     int insertionKey;
+    int shellGap;
+    int shellI;
+    int shellJ;
+    bool shellHolding;
 
     bool showValues;
     bool showHud;
     bool showSettingsOverlay;
     bool showTelemetry;
+    const char *telemetryLine1;
+    const char *telemetryLine2;
+    const char *telemetryLine3;
     bool showSizeInputBox;
     bool sizeInputActive;
     const char *sizeInput;

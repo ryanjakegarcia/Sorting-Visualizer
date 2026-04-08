@@ -39,6 +39,11 @@ typedef struct RuntimeState {
     int quickI;
     int quickJ;
     bool quickPartitionActive;
+    int shellGap;
+    int shellI;
+    int shellJ;
+    int shellTemp;
+    bool shellHolding;
 
     bool sortingDone;
     bool paused;

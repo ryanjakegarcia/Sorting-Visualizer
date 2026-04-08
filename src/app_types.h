@@ -6,7 +6,8 @@ typedef enum SortMode {
     SORT_INSERTION,
     SORT_SELECTION,
     SORT_HEAP,
-    SORT_QUICK
+    SORT_QUICK,
+    SORT_SHELL
 } SortMode;
 
 typedef enum DistributionMode {

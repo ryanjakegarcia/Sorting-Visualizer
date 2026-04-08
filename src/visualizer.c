@@ -32,14 +32,38 @@ static const char *presetPath = "presets/visualizer_preset.cfg";
 typedef struct SortDescriptor {
     SortMode mode;
     const char *name;
+    void (*runStep)(void);
+    void (*resetState)(void);
+    void (*fillTelemetry)(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 } SortDescriptor;
 
+static void run_bubble_step(void);
+static void run_insertion_step(void);
+static void run_selection_step(void);
+static void run_heap_step(void);
+static void run_quick_step(void);
+static void run_shell_step(void);
+static void reset_bubble_state(void);
+static void reset_insertion_state(void);
+static void reset_selection_state(void);
+static void reset_heap_state(void);
+static void reset_quick_state(void);
+static void reset_shell_state(void);
+static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_insertion_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_selection_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_heap_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_quick_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_shell_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+
 static const SortDescriptor sortRegistry[] = {
-    { SORT_BUBBLE, "Bubble" },
-    { SORT_INSERTION, "Insertion" },
-    { SORT_SELECTION, "Selection" },
-    { SORT_HEAP, "Heap" },
-    { SORT_QUICK, "Quick" }
+    { SORT_BUBBLE, "Bubble", run_bubble_step, reset_bubble_state, fill_bubble_telemetry },
+    { SORT_INSERTION, "Insertion", run_insertion_step, reset_insertion_state, fill_insertion_telemetry },
+    { SORT_SHELL, "Shell", run_shell_step, reset_shell_state, fill_shell_telemetry },
+    { SORT_SELECTION, "Selection", run_selection_step, reset_selection_state, fill_selection_telemetry },
+    { SORT_HEAP, "Heap", run_heap_step, reset_heap_state, fill_heap_telemetry },
+    { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry }
 };
 
 #define SORT_REGISTRY_COUNT ((int)(sizeof(sortRegistry) / sizeof(sortRegistry[0])))
@@ -305,6 +329,15 @@ static void reset_quick_state(void)
     }
 }
 
+static void reset_shell_state(void)
+{
+    app.shellGap = app.arraySize / 2;
+    app.shellI = app.shellGap;
+    app.shellJ = app.shellGap;
+    app.shellTemp = 0;
+    app.shellHolding = false;
+}
+
 static void reset_sort_state(bool reshuffle)
 {
     app.sortingDone = false;
@@ -314,11 +347,11 @@ static void reset_sort_state(bool reshuffle)
     reset_stats();
     reset_known_sorted();
     reset_completion_effects();
-    reset_bubble_state();
-    reset_insertion_state();
-    reset_selection_state();
-    reset_heap_state();
-    reset_quick_state();
+    for (int i = 0; i < SORT_REGISTRY_COUNT; i++) {
+        if (sortRegistry[i].resetState != NULL) {
+            sortRegistry[i].resetState();
+        }
+    }
 
     if (reshuffle) {
         shuffle_numbers();
@@ -591,19 +624,103 @@ static void update_completion_sweep(float dt)
     audio_update_completion_sweep(&app.audio, dt, app.finishAudioEnabled, app.arraySize);
 }
 
+static void run_bubble_step(void)
+{
+    bubble_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.bubbleIndex, &app.bubblePass, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_insertion_step(void)
+{
+    insertion_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.insertionIndex, &app.insertionPos, &app.insertionKey, &app.insertionHoldingKey, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_selection_step(void)
+{
+    selection_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.selectionI, &app.selectionJ, &app.selectionMin, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_heap_step(void)
+{
+    heap_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.heapBuildIndex, &app.heapSortEnd, &app.heapSiftRoot, &app.heapSiftEnd, &app.heapFocusIndex, &app.heapCandidateIndex, &app.heapBuilding, &app.heapSiftActive, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_quick_step(void)
+{
+    quick_sort_step(numbers, knownSorted, quickStackLow, quickStackHigh, MAX_SIZE, app.arraySize, &app.sortingDone, &app.quickTop, &app.quickLow, &app.quickHigh, &app.quickPivotValue, &app.quickPivotIndex, &app.quickI, &app.quickJ, &app.quickPartitionActive, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_shell_step(void)
+{
+    shell_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.shellGap, &app.shellI, &app.shellJ, &app.shellTemp, &app.shellHolding, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Bubble idx: %d  pass: %d", app.bubbleIndex, app.bubblePass);
+    snprintf(line2, line2Size, "Compare pair: [%d, %d]", app.bubbleIndex, app.bubbleIndex + 1);
+    if (line3Size > 0) line3[0] = '\0';
+}
+
+static void fill_insertion_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Insertion idx: %d  pos: %d", app.insertionIndex, app.insertionPos);
+    snprintf(line2, line2Size, "Holding key: %s  value: %d", app.insertionHoldingKey ? "yes" : "no", app.insertionKey);
+    if (line3Size > 0) line3[0] = '\0';
+}
+
+static void fill_selection_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Selection i: %d  j: %d", app.selectionI, app.selectionJ);
+    snprintf(line2, line2Size, "Current min idx: %d", app.selectionMin);
+    if (line3Size > 0) line3[0] = '\0';
+}
+
+static void fill_heap_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Heap phase: %s", app.heapBuilding ? "BUILD" : "EXTRACT");
+    snprintf(line2, line2Size, "Sift root/end: %d / %d", app.heapSiftRoot, app.heapSiftEnd);
+    snprintf(line3, line3Size, "Sift active: %s  sorted end: %d", app.heapSiftActive ? "yes" : "no", app.heapSortEnd);
+}
+
+static void fill_quick_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Quick range: [%d, %d]", app.quickLow, app.quickHigh);
+    snprintf(line2, line2Size, "Pivot idx/value: %d / %d", app.quickPivotIndex, app.quickPivotValue);
+    snprintf(line3, line3Size, "i: %d  j: %d  stack: %d", app.quickI, app.quickJ, app.quickTop + 1);
+}
+
+static void fill_shell_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Gap: %d  i: %d  j: %d", app.shellGap, app.shellI, app.shellJ);
+    snprintf(line2, line2Size, "Holding temp: %s  value: %d", app.shellHolding ? "yes" : "no", app.shellTemp);
+    snprintf(line3, line3Size, "Compare idx: %d", app.shellJ - app.shellGap);
+}
+
+static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    int index = get_sort_index(app.currentSort);
+    if (line1Size > 0) line1[0] = '\0';
+    if (line2Size > 0) line2[0] = '\0';
+    if (line3Size > 0) line3[0] = '\0';
+
+    if (index < 0 || sortRegistry[index].fillTelemetry == NULL) {
+        snprintf(line1, line1Size, "No telemetry for selected sort");
+        return;
+    }
+
+    sortRegistry[index].fillTelemetry(line1, line1Size, line2, line2Size, line3, line3Size);
+}
+
 static void run_current_sort_step(void)
 {
-    if (app.currentSort == SORT_BUBBLE) {
-        bubble_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.bubbleIndex, &app.bubblePass, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
-    } else if (app.currentSort == SORT_INSERTION) {
-        insertion_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.insertionIndex, &app.insertionPos, &app.insertionKey, &app.insertionHoldingKey, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
-    } else if (app.currentSort == SORT_SELECTION) {
-        selection_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.selectionI, &app.selectionJ, &app.selectionMin, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
-    } else if (app.currentSort == SORT_HEAP) {
-        heap_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.heapBuildIndex, &app.heapSortEnd, &app.heapSiftRoot, &app.heapSiftEnd, &app.heapFocusIndex, &app.heapCandidateIndex, &app.heapBuilding, &app.heapSiftActive, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
-    } else {
-        quick_sort_step(numbers, knownSorted, quickStackLow, quickStackHigh, MAX_SIZE, app.arraySize, &app.sortingDone, &app.quickTop, &app.quickLow, &app.quickHigh, &app.quickPivotValue, &app.quickPivotIndex, &app.quickI, &app.quickJ, &app.quickPartitionActive, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+    int index = get_sort_index(app.currentSort);
+    if (index < 0 || sortRegistry[index].runStep == NULL) {
+        app.sortingDone = true;
+        set_status_text("Unknown sort selected");
+        return;
     }
+
+    sortRegistry[index].runStep();
 }
 
 int main(){
@@ -734,6 +851,11 @@ int main(){
         BeginDrawing();
         ClearBackground(BLACK);
 
+        char telemetryLine1[96] = { 0 };
+        char telemetryLine2[96] = { 0 };
+        char telemetryLine3[96] = { 0 };
+        fill_current_sort_telemetry(telemetryLine1, sizeof(telemetryLine1), telemetryLine2, sizeof(telemetryLine2), telemetryLine3, sizeof(telemetryLine3));
+
         UiDrawContext ui = {
             .width = WIDTH,
             .height = HEIGHT,
@@ -768,10 +890,17 @@ int main(){
             .heapSiftActive = app.heapSiftActive,
             .insertionHoldingKey = app.insertionHoldingKey,
             .insertionKey = app.insertionKey,
+            .shellGap = app.shellGap,
+            .shellI = app.shellI,
+            .shellJ = app.shellJ,
+            .shellHolding = app.shellHolding,
             .showValues = app.showValues,
             .showHud = app.showHud,
             .showSettingsOverlay = app.showSettingsOverlay,
             .showTelemetry = app.showTelemetry,
+            .telemetryLine1 = telemetryLine1,
+            .telemetryLine2 = telemetryLine2,
+            .telemetryLine3 = telemetryLine3,
             .showSizeInputBox = app.showSizeInputBox,
             .sizeInputActive = app.sizeInputActive,
             .sizeInput = app.sizeInput,

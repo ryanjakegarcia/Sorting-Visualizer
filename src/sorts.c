@@ -458,3 +458,73 @@ void quick_sort_step(
     *quickI = -1;
     *quickJ = -1;
 }
+
+void shell_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *shellGap,
+    int *shellI,
+    int *shellJ,
+    int *shellTemp,
+    bool *shellHolding,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (*shellGap <= 0) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    if (!*shellHolding) {
+        if (*shellI >= arraySize) {
+            *shellGap /= 2;
+            if (*shellGap <= 0) {
+                *sortingDone = true;
+                mark_all_sorted(knownSorted, arraySize);
+                startCompletionSweep();
+                return;
+            }
+
+            *shellI = *shellGap;
+            playSortedSound();
+            return;
+        }
+
+        *shellTemp = numbers[*shellI];
+        *shellJ = *shellI;
+        *shellHolding = true;
+        return;
+    }
+
+    if (*shellJ >= *shellGap) {
+        int cmpIndex = *shellJ - *shellGap;
+        (*statComparisons)++;
+        playCompareSound(numbers[cmpIndex], *shellTemp, cmpIndex, *shellJ);
+
+        if (numbers[cmpIndex] > *shellTemp) {
+            int movedValue = numbers[cmpIndex];
+            numbers[*shellJ] = movedValue;
+            (*statSwaps)++;
+            playSwapSound(movedValue, *shellTemp, cmpIndex, *shellJ);
+            *shellJ -= *shellGap;
+            return;
+        }
+    }
+
+    numbers[*shellJ] = *shellTemp;
+    *shellHolding = false;
+    (*shellI)++;
+}

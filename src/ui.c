@@ -138,6 +138,10 @@ void draw_elements(const UiDrawContext *ctx)
             barColor = RED;
         } else if (ctx->currentSort == SORT_INSERTION && !ctx->sortingDone && ctx->insertionHoldingKey && i == ctx->insertionPos) {
             barColor = ORANGE;
+        } else if (ctx->currentSort == SORT_SHELL && !ctx->sortingDone && ctx->shellHolding && i == ctx->shellJ) {
+            barColor = ORANGE;
+        } else if (ctx->currentSort == SORT_SHELL && !ctx->sortingDone && ctx->shellHolding && ctx->shellJ - ctx->shellGap >= 0 && i == ctx->shellJ - ctx->shellGap) {
+            barColor = RED;
         } else if (ctx->currentSort == SORT_SELECTION && !ctx->sortingDone && i == ctx->selectionMin) {
             barColor = ORANGE;
         } else if (ctx->currentSort == SORT_SELECTION && !ctx->sortingDone && i == ctx->selectionJ && ctx->selectionJ < ctx->arraySize) {
@@ -224,23 +228,14 @@ void draw_elements(const UiDrawContext *ctx)
         int telemetryY = 72;
         DrawText("Telemetry", telemetryX, telemetryY, 22, SKYBLUE);
 
-        if (ctx->currentSort == SORT_BUBBLE) {
-            DrawText(TextFormat("Bubble idx: %d  pass: %d", ctx->bubbleIndex, ctx->bubblePass), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-            DrawText(TextFormat("Compare pair: [%d, %d]", ctx->bubbleIndex, ctx->bubbleIndex + 1), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-        } else if (ctx->currentSort == SORT_INSERTION) {
-            DrawText(TextFormat("Insertion idx: %d  pos: %d", ctx->insertionIndex, ctx->insertionPos), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-            DrawText(TextFormat("Holding key: %s  value: %d", ctx->insertionHoldingKey ? "yes" : "no", ctx->insertionKey), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-        } else if (ctx->currentSort == SORT_SELECTION) {
-            DrawText(TextFormat("Selection i: %d  j: %d", ctx->selectionI, ctx->selectionJ), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-            DrawText(TextFormat("Current min idx: %d", ctx->selectionMin), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-        } else if (ctx->currentSort == SORT_HEAP) {
-            DrawText(TextFormat("Heap phase: %s", ctx->heapBuilding ? "BUILD" : "EXTRACT"), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-            DrawText(TextFormat("Sift root/end: %d / %d", ctx->heapSiftRoot, ctx->heapSiftEnd), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-            DrawText(TextFormat("Sift active: %s  sorted end: %d", ctx->heapSiftActive ? "yes" : "no", ctx->heapSortEnd), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
-        } else {
-            DrawText(TextFormat("Quick range: [%d, %d]", ctx->quickLow, ctx->quickHigh), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-            DrawText(TextFormat("Pivot idx/value: %d / %d", ctx->quickPivotIndex, ctx->quickPivotValue), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-            DrawText(TextFormat("i: %d  j: %d  stack: %d", ctx->quickI, ctx->quickJ, ctx->quickTop + 1), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
+        if (ctx->telemetryLine1 != NULL && ctx->telemetryLine1[0] != '\0') {
+            DrawText(ctx->telemetryLine1, telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+        }
+        if (ctx->telemetryLine2 != NULL && ctx->telemetryLine2[0] != '\0') {
+            DrawText(ctx->telemetryLine2, telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+        }
+        if (ctx->telemetryLine3 != NULL && ctx->telemetryLine3[0] != '\0') {
+            DrawText(ctx->telemetryLine3, telemetryX, telemetryY + 74, 20, LIGHTGRAY);
         }
     }
 
@@ -270,6 +265,15 @@ void draw_elements(const UiDrawContext *ctx)
             DrawText("Current Min", legendX + 28, legendY + 60, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
             DrawText("Finalized Prefix", legendX + 28, legendY + 88, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
+            DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_SHELL) {
+            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawText("Gap Compare", legendX + 28, legendY + 32, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ORANGE);
+            DrawText("Gap Insert Pos", legendX + 28, legendY + 60, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 90, 18, 18, GREEN);
+            DrawText("Sorted (final)", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_HEAP) {

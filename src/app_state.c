@@ -34,6 +34,11 @@ void app_state_init_defaults(RuntimeState *state)
     state->quickI = -1;
     state->quickJ = -1;
     state->quickPartitionActive = false;
+    state->shellGap = 0;
+    state->shellI = 0;
+    state->shellJ = 0;
+    state->shellTemp = 0;
+    state->shellHolding = false;
 
     state->sortingDone = false;
     state->paused = false;
