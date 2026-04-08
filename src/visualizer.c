@@ -761,12 +761,14 @@ static void draw_benchmark_overlay(void)
     DrawText("Warmup", (int)warmupButton.x + 18, (int)warmupButton.y + 4, 16, RAYWHITE);
     DrawText("Start", (int)startButton.x + 34, (int)startButton.y + 4, 16, RAYWHITE);
 
+    int statusY = buttonY + 30;
+
     if (benchmark.running) {
         const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode);
         if (benchmark.inWarmup) {
-            DrawText(TextFormat("Running Warmup: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, benchmark.sequenceCount), panelX + 16, panelY + 114, 20, SKYBLUE);
+            DrawText(TextFormat("Running Warmup: %s (%d/%d)", runningName, benchmark.currentSortIndex + 1, benchmark.sequenceCount), panelX + 16, statusY, 20, SKYBLUE);
         } else {
-            DrawText(TextFormat("Running: %s  run %d/%d  (%d/%d)", runningName, benchmark.currentRunIndex + 1, benchmark.configRunsPerSort, benchmark.currentSortIndex + 1, benchmark.sequenceCount), panelX + 16, panelY + 114, 20, SKYBLUE);
+            DrawText(TextFormat("Running: %s  run %d/%d  (%d/%d)", runningName, benchmark.currentRunIndex + 1, benchmark.configRunsPerSort, benchmark.currentSortIndex + 1, benchmark.sequenceCount), panelX + 16, statusY, 20, SKYBLUE);
         }
     } else {
         bool hasResults = false;
@@ -776,7 +778,7 @@ static void draw_benchmark_overlay(void)
                 break;
             }
         }
-        DrawText(hasResults ? "Status: Complete" : "Status: Config", panelX + 16, panelY + 114, 20, SKYBLUE);
+        DrawText(hasResults ? "Status: Complete" : "Status: Config", panelX + 16, statusY, 20, SKYBLUE);
     }
 
     int tableY = panelY + 182;

@@ -201,7 +201,10 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         }
     }
 
-    if (!*ctx->sizeInputActive && !*ctx->pauseMenuActive && !ctx->benchmarkOverlayActive) {
+    bool allowGeneralHotkeys = !*ctx->sizeInputActive && !*ctx->pauseMenuActive && !ctx->benchmarkOverlayActive;
+    bool allowUiToggleHotkeys = !*ctx->sizeInputActive && !*ctx->pauseMenuActive;
+
+    if (allowGeneralHotkeys) {
         if (IsKeyPressed(KEY_M)) {
             *ctx->stepMode = !*ctx->stepMode;
             *ctx->stepOnceRequested = false;
@@ -210,7 +213,9 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         if (IsKeyPressed(KEY_N) && (*ctx->paused || *ctx->stepMode)) {
             *ctx->stepOnceRequested = true;
         }
+    }
 
+    if (allowUiToggleHotkeys) {
         if (IsKeyPressed(KEY_V)) {
             *ctx->showValues = !*ctx->showValues;
         }
@@ -244,6 +249,9 @@ void controller_handle_input(ControllerContext *ctx, float dt)
                 *ctx->sizeInputActive = false;
             }
         }
+    }
+
+    if (allowGeneralHotkeys) {
 
         if (IsKeyPressed(KEY_C)) {
             *ctx->compareAudioEnabled = !*ctx->compareAudioEnabled;
