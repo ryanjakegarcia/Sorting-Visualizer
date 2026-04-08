@@ -63,6 +63,9 @@ static void run_heap_step(void);
 static void run_quick_step(void);
 static void run_shell_step(void);
 static void run_merge_step(void);
+static void run_cocktail_step(void);
+static void run_gnome_step(void);
+static void run_comb_step(void);
 static void reset_bubble_state(void);
 static void reset_insertion_state(void);
 static void reset_selection_state(void);
@@ -70,6 +73,9 @@ static void reset_heap_state(void);
 static void reset_quick_state(void);
 static void reset_shell_state(void);
 static void reset_merge_state(void);
+static void reset_cocktail_state(void);
+static void reset_gnome_state(void);
+static void reset_comb_state(void);
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_insertion_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_selection_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
@@ -77,6 +83,9 @@ static void fill_heap_telemetry(char *line1, size_t line1Size, char *line2, size
 static void fill_quick_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_shell_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_merge_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_cocktail_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_gnome_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_comb_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static Color color_from_id(int colorId);
 
@@ -87,7 +96,10 @@ static const SortDescriptor sortRegistry[] = {
     { SORT_MERGE, "Merge", run_merge_step, reset_merge_state, fill_merge_telemetry, COLOR_ID_BLUE, COLOR_ID_ORANGE, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE },
     { SORT_SELECTION, "Selection", run_selection_step, reset_selection_state, fill_selection_telemetry, COLOR_ID_RED, COLOR_ID_MAGENTA, COLOR_ID_MAROON, COLOR_ID_SKYBLUE },
     { SORT_HEAP, "Heap", run_heap_step, reset_heap_state, fill_heap_telemetry, COLOR_ID_RED, COLOR_ID_ORANGE, COLOR_ID_MAROON, COLOR_ID_SKYBLUE },
-    { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry, COLOR_ID_RED, COLOR_ID_PINK, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE }
+    { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry, COLOR_ID_RED, COLOR_ID_PINK, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
+    { SORT_COCKTAIL, "Cocktail", run_cocktail_step, reset_cocktail_state, fill_cocktail_telemetry, COLOR_ID_ORANGE, COLOR_ID_RED, COLOR_ID_SKYBLUE, COLOR_ID_MAROON },
+    { SORT_GNOME, "Gnome", run_gnome_step, reset_gnome_state, fill_gnome_telemetry, COLOR_ID_VIOLET, COLOR_ID_PINK, COLOR_ID_ORANGE, COLOR_ID_SKYBLUE },
+    { SORT_COMB, "Comb", run_comb_step, reset_comb_state, fill_comb_telemetry, COLOR_ID_BLUE, COLOR_ID_GOLD, COLOR_ID_PURPLE, COLOR_ID_SKYBLUE }
 };
 
 #define SORT_REGISTRY_COUNT ((int)(sizeof(sortRegistry) / sizeof(sortRegistry[0])))
@@ -389,6 +401,27 @@ static void reset_merge_state(void)
     app.mergeCopyIndex = 0;
     app.mergeActive = false;
     app.mergeCopying = false;
+}
+
+static void reset_cocktail_state(void)
+{
+    app.cocktailStart = 0;
+    app.cocktailEnd = app.arraySize - 1;
+    app.cocktailIndex = 0;
+    app.cocktailForward = true;
+    app.cocktailSwapped = false;
+}
+
+static void reset_gnome_state(void)
+{
+    app.gnomeIndex = 1;
+}
+
+static void reset_comb_state(void)
+{
+    app.combGap = app.arraySize;
+    app.combIndex = 0;
+    app.combSwapped = false;
 }
 
 static void reset_sort_state(bool reshuffle)
@@ -879,6 +912,21 @@ static void run_merge_step(void)
     merge_sort_step(numbers, mergeBuffer, knownSorted, app.arraySize, &app.sortingDone, &app.mergeWidth, &app.mergeLeft, &app.mergeMid, &app.mergeRight, &app.mergeI, &app.mergeJ, &app.mergeK, &app.mergeCopyIndex, &app.mergeActive, &app.mergeCopying, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
 }
 
+static void run_cocktail_step(void)
+{
+    cocktail_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.cocktailStart, &app.cocktailEnd, &app.cocktailIndex, &app.cocktailForward, &app.cocktailSwapped, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_gnome_step(void)
+{
+    gnome_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.gnomeIndex, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
+static void run_comb_step(void)
+{
+    comb_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.combGap, &app.combIndex, &app.combSwapped, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
 {
     snprintf(line1, line1Size, "Bubble idx: %d  pass: %d", app.bubbleIndex, app.bubblePass);
@@ -926,6 +974,27 @@ static void fill_merge_telemetry(char *line1, size_t line1Size, char *line2, siz
     snprintf(line1, line1Size, "Width: %d  left/mid/right: %d/%d/%d", app.mergeWidth, app.mergeLeft, app.mergeMid, app.mergeRight);
     snprintf(line2, line2Size, "i:%d  j:%d  k:%d", app.mergeI, app.mergeJ, app.mergeK);
     snprintf(line3, line3Size, "Phase: %s", app.mergeCopying ? "COPY BACK" : (app.mergeActive ? "MERGE" : "PREPARE"));
+}
+
+static void fill_cocktail_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Cocktail start/end: %d/%d", app.cocktailStart, app.cocktailEnd);
+    snprintf(line2, line2Size, "Index: %d  dir: %s", app.cocktailIndex, app.cocktailForward ? "FWD" : "BWD");
+    snprintf(line3, line3Size, "Swapped this pass: %s", app.cocktailSwapped ? "yes" : "no");
+}
+
+static void fill_gnome_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Gnome index: %d", app.gnomeIndex);
+    snprintf(line2, line2Size, "Compare pair: [%d, %d]", app.gnomeIndex - 1, app.gnomeIndex);
+    snprintf(line3, line3Size, "Mode: adjacent walk");
+}
+
+static void fill_comb_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Gap: %d  Index: %d", app.combGap, app.combIndex);
+    snprintf(line2, line2Size, "Compare pair: [%d, %d]", app.combIndex, app.combIndex + app.combGap);
+    snprintf(line3, line3Size, "Swapped this pass: %s", app.combSwapped ? "yes" : "no");
 }
 
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
@@ -1325,6 +1394,15 @@ int main(){
             .mergeCopyIndex = app.mergeCopyIndex,
             .mergeActive = app.mergeActive,
             .mergeCopying = app.mergeCopying,
+            .cocktailStart = app.cocktailStart,
+            .cocktailEnd = app.cocktailEnd,
+            .cocktailIndex = app.cocktailIndex,
+            .cocktailForward = app.cocktailForward,
+            .cocktailSwapped = app.cocktailSwapped,
+            .gnomeIndex = app.gnomeIndex,
+            .combGap = app.combGap,
+            .combIndex = app.combIndex,
+            .combSwapped = app.combSwapped,
             .showValues = app.showValues,
             .showHud = app.showHud,
             .showSettingsOverlay = app.showSettingsOverlay,

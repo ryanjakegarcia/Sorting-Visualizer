@@ -49,6 +49,15 @@ void app_state_init_defaults(RuntimeState *state)
     state->mergeCopyIndex = 0;
     state->mergeActive = false;
     state->mergeCopying = false;
+    state->cocktailStart = 0;
+    state->cocktailEnd = 0;
+    state->cocktailIndex = 0;
+    state->cocktailForward = true;
+    state->cocktailSwapped = false;
+    state->gnomeIndex = 1;
+    state->combGap = 0;
+    state->combIndex = 0;
+    state->combSwapped = false;
 
     state->sortingDone = false;
     state->paused = false;

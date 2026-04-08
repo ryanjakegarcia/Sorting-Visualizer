@@ -54,6 +54,15 @@ typedef struct RuntimeState {
     int mergeCopyIndex;
     bool mergeActive;
     bool mergeCopying;
+    int cocktailStart;
+    int cocktailEnd;
+    int cocktailIndex;
+    bool cocktailForward;
+    bool cocktailSwapped;
+    int gnomeIndex;
+    int combGap;
+    int combIndex;
+    bool combSwapped;
 
     bool sortingDone;
     bool paused;

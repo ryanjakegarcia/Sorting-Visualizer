@@ -62,6 +62,15 @@ typedef struct UiDrawContext {
     int mergeCopyIndex;
     bool mergeActive;
     bool mergeCopying;
+    int cocktailStart;
+    int cocktailEnd;
+    int cocktailIndex;
+    bool cocktailForward;
+    bool cocktailSwapped;
+    int gnomeIndex;
+    int combGap;
+    int combIndex;
+    bool combSwapped;
 
     bool showValues;
     bool showHud;

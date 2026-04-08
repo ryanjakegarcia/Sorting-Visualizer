@@ -638,3 +638,243 @@ void merge_sort_step(
     *mergeCopying = false;
     *mergeLeft += 2 * (*mergeWidth);
 }
+
+void cocktail_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *cocktailStart,
+    int *cocktailEnd,
+    int *cocktailIndex,
+    bool *cocktailForward,
+    bool *cocktailSwapped,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    if (*cocktailStart >= *cocktailEnd) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    if (*cocktailForward) {
+        if (*cocktailIndex < *cocktailEnd) {
+            int leftIndex = *cocktailIndex;
+            int rightIndex = *cocktailIndex + 1;
+            (*statComparisons)++;
+            playCompareSound(numbers[leftIndex], numbers[rightIndex], leftIndex, rightIndex);
+            if (numbers[leftIndex] > numbers[rightIndex]) {
+                int left = numbers[leftIndex];
+                int right = numbers[rightIndex];
+                numbers[leftIndex] = right;
+                numbers[rightIndex] = left;
+                (*statSwaps)++;
+                *cocktailSwapped = true;
+                playSwapSound(left, right, leftIndex, rightIndex);
+            }
+            (*cocktailIndex)++;
+            return;
+        }
+
+        knownSorted[*cocktailEnd] = true;
+        if (!*cocktailSwapped) {
+            *sortingDone = true;
+            mark_all_sorted(knownSorted, arraySize);
+            startCompletionSweep();
+            return;
+        }
+
+        *cocktailSwapped = false;
+        *cocktailForward = false;
+        (*cocktailEnd)--;
+        *cocktailIndex = *cocktailEnd;
+        if (*cocktailEnd > *cocktailStart) {
+            playSortedSound();
+        }
+        return;
+    }
+
+    if (*cocktailIndex > *cocktailStart) {
+        int leftIndex = *cocktailIndex - 1;
+        int rightIndex = *cocktailIndex;
+        (*statComparisons)++;
+        playCompareSound(numbers[leftIndex], numbers[rightIndex], leftIndex, rightIndex);
+        if (numbers[leftIndex] > numbers[rightIndex]) {
+            int left = numbers[leftIndex];
+            int right = numbers[rightIndex];
+            numbers[leftIndex] = right;
+            numbers[rightIndex] = left;
+            (*statSwaps)++;
+            *cocktailSwapped = true;
+            playSwapSound(left, right, leftIndex, rightIndex);
+        }
+        (*cocktailIndex)--;
+        return;
+    }
+
+    knownSorted[*cocktailStart] = true;
+    (*cocktailStart)++;
+    if (!*cocktailSwapped) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    *cocktailSwapped = false;
+    *cocktailForward = true;
+    *cocktailIndex = *cocktailStart;
+    if (*cocktailStart < *cocktailEnd) {
+        playSortedSound();
+    }
+}
+
+void gnome_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *gnomeIndex,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1 || *gnomeIndex >= arraySize) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    if (*gnomeIndex <= 0) {
+        *gnomeIndex = 1;
+        return;
+    }
+
+    int leftIndex = *gnomeIndex - 1;
+    int rightIndex = *gnomeIndex;
+    (*statComparisons)++;
+    playCompareSound(numbers[leftIndex], numbers[rightIndex], leftIndex, rightIndex);
+
+    if (numbers[rightIndex] >= numbers[leftIndex]) {
+        knownSorted[leftIndex] = true;
+        (*gnomeIndex)++;
+        if (*gnomeIndex < arraySize) {
+            playSortedSound();
+        }
+        if (*gnomeIndex >= arraySize) {
+            *sortingDone = true;
+            mark_all_sorted(knownSorted, arraySize);
+            startCompletionSweep();
+        }
+        return;
+    }
+
+    int left = numbers[leftIndex];
+    int right = numbers[rightIndex];
+    numbers[leftIndex] = right;
+    numbers[rightIndex] = left;
+    (*statSwaps)++;
+    playSwapSound(left, right, leftIndex, rightIndex);
+    (*gnomeIndex)--;
+}
+
+void comb_sort_step(
+    int *numbers,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *combGap,
+    int *combIndex,
+    bool *combSwapped,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        startCompletionSweep();
+        return;
+    }
+
+    if (*combGap < 1) {
+        *combGap = 1;
+    }
+
+    if (*combIndex + *combGap >= arraySize) {
+        if (*combGap == 1) {
+            if (!*combSwapped) {
+                *sortingDone = true;
+                mark_all_sorted(knownSorted, arraySize);
+                startCompletionSweep();
+                return;
+            }
+
+            *combSwapped = false;
+            *combIndex = 0;
+            return;
+        }
+
+        int nextGap = (*combGap * 10) / 13;
+        if (nextGap < 1) {
+            nextGap = 1;
+        }
+        *combGap = nextGap;
+        *combIndex = 0;
+        *combSwapped = false;
+        playSortedSound();
+        return;
+    }
+
+    int leftIndex = *combIndex;
+    int rightIndex = *combIndex + *combGap;
+    (*statComparisons)++;
+    playCompareSound(numbers[leftIndex], numbers[rightIndex], leftIndex, rightIndex);
+
+    if (numbers[leftIndex] > numbers[rightIndex]) {
+        int left = numbers[leftIndex];
+        int right = numbers[rightIndex];
+        numbers[leftIndex] = right;
+        numbers[rightIndex] = left;
+        (*statSwaps)++;
+        *combSwapped = true;
+        playSwapSound(left, right, leftIndex, rightIndex);
+    }
+
+    (*combIndex)++;
+}
