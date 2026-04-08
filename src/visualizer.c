@@ -715,6 +715,39 @@ static void draw_benchmark_overlay(void)
     DrawText(TextFormat("Config: Runs[-/=]%d  Seed[Z]:%s  Warmup[W]:%s", benchmark.configRunsPerSort, benchmark.configUseFixedSeed ? "ON" : "OFF", benchmark.configWarmup ? "ON" : "OFF"), panelX + 16, panelY + 68, 18, LIGHTGRAY);
     DrawText(TextFormat("Seed Value [,/.]: %u  Subset [LEFT/RIGHT or [ / ]], Toggle[;], Enter=start", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
 
+    int buttonY = panelY + 118;
+    Rectangle runsMinusButton = { (float)(panelX + 16), (float)buttonY, 24.0f, 24.0f };
+    Rectangle runsPlusButton = { (float)(panelX + 44), (float)buttonY, 24.0f, 24.0f };
+    Rectangle seedMinusButton = { (float)(panelX + 220), (float)buttonY, 24.0f, 24.0f };
+    Rectangle seedPlusButton = { (float)(panelX + 248), (float)buttonY, 24.0f, 24.0f };
+    Rectangle fixedSeedButton = { (float)(panelX + 330), (float)buttonY, 96.0f, 24.0f };
+    Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
+    Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
+
+    DrawRectangleRec(runsMinusButton, Fade(DARKGRAY, 0.8f));
+    DrawRectangleRec(runsPlusButton, Fade(DARKGRAY, 0.8f));
+    DrawRectangleRec(seedMinusButton, Fade(DARKGRAY, 0.8f));
+    DrawRectangleRec(seedPlusButton, Fade(DARKGRAY, 0.8f));
+    DrawRectangleRec(fixedSeedButton, Fade(benchmark.configUseFixedSeed ? DARKGREEN : DARKGRAY, 0.8f));
+    DrawRectangleRec(warmupButton, Fade(benchmark.configWarmup ? DARKGREEN : DARKGRAY, 0.8f));
+    DrawRectangleRec(startButton, Fade(benchmark.running ? DARKGRAY : DARKBLUE, 0.85f));
+
+    DrawRectangleLinesEx(runsMinusButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(runsPlusButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(seedMinusButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(seedPlusButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(fixedSeedButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(warmupButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(startButton, 1.0f, LIGHTGRAY);
+
+    DrawText("-", (int)runsMinusButton.x + 8, (int)runsMinusButton.y + 2, 20, RAYWHITE);
+    DrawText("+", (int)runsPlusButton.x + 7, (int)runsPlusButton.y + 1, 20, RAYWHITE);
+    DrawText("-", (int)seedMinusButton.x + 8, (int)seedMinusButton.y + 2, 20, RAYWHITE);
+    DrawText("+", (int)seedPlusButton.x + 7, (int)seedPlusButton.y + 1, 20, RAYWHITE);
+    DrawText("Fixed Seed", (int)fixedSeedButton.x + 8, (int)fixedSeedButton.y + 4, 16, RAYWHITE);
+    DrawText("Warmup", (int)warmupButton.x + 18, (int)warmupButton.y + 4, 16, RAYWHITE);
+    DrawText("Start", (int)startButton.x + 34, (int)startButton.y + 4, 16, RAYWHITE);
+
     if (benchmark.running) {
         const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode);
         if (benchmark.inWarmup) {
@@ -733,7 +766,7 @@ static void draw_benchmark_overlay(void)
         DrawText(hasResults ? "Status: Complete" : "Status: Config", panelX + 16, panelY + 114, 20, SKYBLUE);
     }
 
-    int tableY = panelY + 146;
+    int tableY = panelY + 182;
     DrawText("Sort", panelX + 16, tableY, 20, YELLOW);
     DrawText("Avg", panelX + 150, tableY, 20, YELLOW);
     DrawText("Min", panelX + 235, tableY, 20, YELLOW);
@@ -1019,7 +1052,16 @@ int main(){
                 if (panelW < 360) panelW = 360;
                 if (panelH < 240) panelH = 240;
 
-                int tableY = panelY + 146;
+                int buttonY = panelY + 118;
+                Rectangle runsMinusButton = { (float)(panelX + 16), (float)buttonY, 24.0f, 24.0f };
+                Rectangle runsPlusButton = { (float)(panelX + 44), (float)buttonY, 24.0f, 24.0f };
+                Rectangle seedMinusButton = { (float)(panelX + 220), (float)buttonY, 24.0f, 24.0f };
+                Rectangle seedPlusButton = { (float)(panelX + 248), (float)buttonY, 24.0f, 24.0f };
+                Rectangle fixedSeedButton = { (float)(panelX + 330), (float)buttonY, 96.0f, 24.0f };
+                Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
+                Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
+
+                int tableY = panelY + 182;
                 int rowY = tableY + 28;
                 int maxRows = (panelY + panelH - rowY - 26) / 24;
                 if (maxRows < 1) maxRows = 1;
@@ -1027,6 +1069,45 @@ int main(){
                 if (rowsToDraw > maxRows) rowsToDraw = maxRows;
 
                 Vector2 mousePos = GetMousePosition();
+                bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+                bool consumedClick = false;
+
+                if (mouseClick) {
+                    if (CheckCollisionPointRec(mousePos, runsMinusButton)) {
+                        benchmark.configRunsPerSort--;
+                        if (benchmark.configRunsPerSort < 1) benchmark.configRunsPerSort = 1;
+                        set_status_text(TextFormat("Benchmark runs: %d", benchmark.configRunsPerSort));
+                        consumedClick = true;
+                    } else if (CheckCollisionPointRec(mousePos, runsPlusButton)) {
+                        benchmark.configRunsPerSort++;
+                        if (benchmark.configRunsPerSort > 20) benchmark.configRunsPerSort = 20;
+                        set_status_text(TextFormat("Benchmark runs: %d", benchmark.configRunsPerSort));
+                        consumedClick = true;
+                    } else if (CheckCollisionPointRec(mousePos, seedMinusButton)) {
+                        if (benchmark.configFixedSeed > 0u) {
+                            benchmark.configFixedSeed -= 1u;
+                        }
+                        set_status_text(TextFormat("Benchmark seed: %u", benchmark.configFixedSeed));
+                        consumedClick = true;
+                    } else if (CheckCollisionPointRec(mousePos, seedPlusButton)) {
+                        benchmark.configFixedSeed += 1u;
+                        set_status_text(TextFormat("Benchmark seed: %u", benchmark.configFixedSeed));
+                        consumedClick = true;
+                    } else if (CheckCollisionPointRec(mousePos, fixedSeedButton)) {
+                        benchmark.configUseFixedSeed = !benchmark.configUseFixedSeed;
+                        set_status_text(benchmark.configUseFixedSeed ? "Benchmark fixed seed ON" : "Benchmark fixed seed OFF");
+                        consumedClick = true;
+                    } else if (CheckCollisionPointRec(mousePos, warmupButton)) {
+                        benchmark.configWarmup = !benchmark.configWarmup;
+                        set_status_text(benchmark.configWarmup ? "Benchmark warmup ON" : "Benchmark warmup OFF");
+                        consumedClick = true;
+                    } else if (CheckCollisionPointRec(mousePos, startButton)) {
+                        benchmark_start();
+                        stepTimer = 0.0f;
+                        consumedClick = true;
+                    }
+                }
+
                 int hoveredRow = -1;
                 for (int i = 0; i < rowsToDraw; i++) {
                     Rectangle rowRect = { (float)(panelX + 10), (float)(rowY + i * 24 - 2), (float)(panelW - 20), 24.0f };
@@ -1040,7 +1121,7 @@ int main(){
                     benchmark.selectedConfigSortIndex = hoveredRow;
                 }
 
-                if (hoveredRow >= 0 && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                if (!consumedClick && hoveredRow >= 0 && mouseClick) {
                     benchmark.selectedConfigSortIndex = hoveredRow;
                     if (mousePos.x <= (float)(panelX + 48)) {
                         int idx = hoveredRow;
