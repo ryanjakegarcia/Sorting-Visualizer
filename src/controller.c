@@ -249,9 +249,6 @@ void controller_handle_input(ControllerContext *ctx, float dt)
                 *ctx->sizeInputActive = false;
             }
         }
-    }
-
-    if (allowGeneralHotkeys) {
 
         if (IsKeyPressed(KEY_C)) {
             *ctx->compareAudioEnabled = !*ctx->compareAudioEnabled;
@@ -276,7 +273,9 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         if (IsKeyDown(KEY_LEFT_BRACKET)) {
             *ctx->masterVolume -= ctx->masterVolumeStep * dt;
         }
+    }
 
+    if (allowGeneralHotkeys) {
         if (IsKeyPressed(KEY_TAB)) {
             if (ctx->cycleSort != NULL) {
                 ctx->cycleSort();
