@@ -528,3 +528,113 @@ void shell_sort_step(
     *shellHolding = false;
     (*shellI)++;
 }
+
+void merge_sort_step(
+    int *numbers,
+    int *mergeBuffer,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *mergeWidth,
+    int *mergeLeft,
+    int *mergeMid,
+    int *mergeRight,
+    int *mergeI,
+    int *mergeJ,
+    int *mergeK,
+    int *mergeCopyIndex,
+    bool *mergeActive,
+    bool *mergeCopying,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+)
+{
+    if (*sortingDone) {
+        return;
+    }
+
+    if (arraySize <= 1 || *mergeWidth <= 0 || *mergeWidth >= arraySize) {
+        *sortingDone = true;
+        mark_all_sorted(knownSorted, arraySize);
+        *mergeActive = false;
+        *mergeCopying = false;
+        startCompletionSweep();
+        return;
+    }
+
+    if (!*mergeActive) {
+        if (*mergeLeft >= arraySize) {
+            *mergeWidth *= 2;
+            *mergeLeft = 0;
+            if (*mergeWidth < arraySize) {
+                playSortedSound();
+            }
+            return;
+        }
+
+        *mergeMid = *mergeLeft + *mergeWidth;
+        if (*mergeMid > arraySize) {
+            *mergeMid = arraySize;
+        }
+
+        *mergeRight = *mergeLeft + 2 * (*mergeWidth);
+        if (*mergeRight > arraySize) {
+            *mergeRight = arraySize;
+        }
+
+        if (*mergeMid >= *mergeRight) {
+            *mergeLeft += 2 * (*mergeWidth);
+            return;
+        }
+
+        *mergeI = *mergeLeft;
+        *mergeJ = *mergeMid;
+        *mergeK = *mergeLeft;
+        *mergeCopyIndex = *mergeLeft;
+        *mergeActive = true;
+        *mergeCopying = false;
+        return;
+    }
+
+    if (!*mergeCopying) {
+        if (*mergeI < *mergeMid && *mergeJ < *mergeRight) {
+            (*statComparisons)++;
+            playCompareSound(numbers[*mergeI], numbers[*mergeJ], *mergeI, *mergeJ);
+        }
+
+        if (*mergeI < *mergeMid && (*mergeJ >= *mergeRight || numbers[*mergeI] <= numbers[*mergeJ])) {
+            mergeBuffer[*mergeK] = numbers[*mergeI];
+            (*mergeI)++;
+        } else if (*mergeJ < *mergeRight) {
+            mergeBuffer[*mergeK] = numbers[*mergeJ];
+            (*mergeJ)++;
+        }
+        (*mergeK)++;
+
+        if (*mergeK >= *mergeRight) {
+            *mergeCopying = true;
+            *mergeCopyIndex = *mergeLeft;
+        }
+        return;
+    }
+
+    if (*mergeCopyIndex < *mergeRight) {
+        int oldValue = numbers[*mergeCopyIndex];
+        int newValue = mergeBuffer[*mergeCopyIndex];
+        numbers[*mergeCopyIndex] = newValue;
+        if (oldValue != newValue) {
+            (*statSwaps)++;
+            playSwapSound(oldValue, newValue, *mergeCopyIndex, *mergeCopyIndex);
+        }
+        (*mergeCopyIndex)++;
+        return;
+    }
+
+    *mergeActive = false;
+    *mergeCopying = false;
+    *mergeLeft += 2 * (*mergeWidth);
+}

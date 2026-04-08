@@ -39,6 +39,16 @@ void app_state_init_defaults(RuntimeState *state)
     state->shellJ = 0;
     state->shellTemp = 0;
     state->shellHolding = false;
+    state->mergeWidth = 1;
+    state->mergeLeft = 0;
+    state->mergeMid = 0;
+    state->mergeRight = 0;
+    state->mergeI = 0;
+    state->mergeJ = 0;
+    state->mergeK = 0;
+    state->mergeCopyIndex = 0;
+    state->mergeActive = false;
+    state->mergeCopying = false;
 
     state->sortingDone = false;
     state->paused = false;

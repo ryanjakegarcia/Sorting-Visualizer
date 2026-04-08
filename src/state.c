@@ -56,7 +56,7 @@ bool preset_load_from_file(const char *path, PresetSettings *settings)
     while (fscanf(f, "%31s", key) == 1) {
         if (strcmp(key, "sort") == 0) {
             int mode = 0;
-            if (fscanf(f, "%d", &mode) == 1 && mode >= SORT_BUBBLE && mode <= SORT_SHELL) {
+            if (fscanf(f, "%d", &mode) == 1 && mode >= SORT_BUBBLE && mode <= SORT_MERGE) {
                 settings->sortMode = (SortMode)mode;
             }
         } else if (strcmp(key, "speed") == 0) {

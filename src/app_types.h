@@ -7,7 +7,8 @@ typedef enum SortMode {
     SORT_SELECTION,
     SORT_HEAP,
     SORT_QUICK,
-    SORT_SHELL
+    SORT_SHELL,
+    SORT_MERGE
 } SortMode;
 
 typedef enum DistributionMode {

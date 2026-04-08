@@ -44,6 +44,16 @@ typedef struct RuntimeState {
     int shellJ;
     int shellTemp;
     bool shellHolding;
+    int mergeWidth;
+    int mergeLeft;
+    int mergeMid;
+    int mergeRight;
+    int mergeI;
+    int mergeJ;
+    int mergeK;
+    int mergeCopyIndex;
+    bool mergeActive;
+    bool mergeCopying;
 
     bool sortingDone;
     bool paused;

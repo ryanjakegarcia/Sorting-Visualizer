@@ -142,6 +142,14 @@ void draw_elements(const UiDrawContext *ctx)
             barColor = ORANGE;
         } else if (ctx->currentSort == SORT_SHELL && !ctx->sortingDone && ctx->shellHolding && ctx->shellJ - ctx->shellGap >= 0 && i == ctx->shellJ - ctx->shellGap) {
             barColor = RED;
+        } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && !ctx->mergeCopying && i == ctx->mergeI) {
+            barColor = RED;
+        } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && !ctx->mergeCopying && i == ctx->mergeJ) {
+            barColor = ORANGE;
+        } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeActive && i == ctx->mergeK) {
+            barColor = PINK;
+        } else if (ctx->currentSort == SORT_MERGE && !ctx->sortingDone && ctx->mergeCopying && i == ctx->mergeCopyIndex) {
+            barColor = SKYBLUE;
         } else if (ctx->currentSort == SORT_SELECTION && !ctx->sortingDone && i == ctx->selectionMin) {
             barColor = ORANGE;
         } else if (ctx->currentSort == SORT_SELECTION && !ctx->sortingDone && i == ctx->selectionJ && ctx->selectionJ < ctx->arraySize) {
@@ -276,6 +284,17 @@ void draw_elements(const UiDrawContext *ctx)
             DrawText("Sorted (final)", legendX + 28, legendY + 88, 20, LIGHTGRAY);
             DrawRectangle(legendX, legendY + 118, 18, 18, YELLOW);
             DrawText("Completion Sweep", legendX + 28, legendY + 116, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_MERGE) {
+            DrawRectangle(legendX, legendY + 34, 18, 18, RED);
+            DrawText("Left Candidate", legendX + 28, legendY + 32, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 62, 18, 18, ORANGE);
+            DrawText("Right Candidate", legendX + 28, legendY + 60, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 90, 18, 18, PINK);
+            DrawText("Merge Write", legendX + 28, legendY + 88, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 118, 18, 18, SKYBLUE);
+            DrawText("Copy Back", legendX + 28, legendY + 116, 20, LIGHTGRAY);
+            DrawRectangle(legendX, legendY + 146, 18, 18, YELLOW);
+            DrawText("Completion Sweep", legendX + 28, legendY + 144, 20, LIGHTGRAY);
         } else if (ctx->currentSort == SORT_HEAP) {
             DrawRectangle(legendX, legendY + 34, 18, 18, RED);
             DrawText("Sift Root", legendX + 28, legendY + 32, 20, LIGHTGRAY);

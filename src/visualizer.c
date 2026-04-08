@@ -24,6 +24,7 @@ static RuntimeState app;
 
 static int quickStackLow[MAX_SIZE];
 static int quickStackHigh[MAX_SIZE];
+static int mergeBuffer[MAX_SIZE];
 
 static const float masterVolumeStep = 0.05f;
 static const float autoNextSortDelay = 3.0f;
@@ -43,24 +44,28 @@ static void run_selection_step(void);
 static void run_heap_step(void);
 static void run_quick_step(void);
 static void run_shell_step(void);
+static void run_merge_step(void);
 static void reset_bubble_state(void);
 static void reset_insertion_state(void);
 static void reset_selection_state(void);
 static void reset_heap_state(void);
 static void reset_quick_state(void);
 static void reset_shell_state(void);
+static void reset_merge_state(void);
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_insertion_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_selection_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_heap_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_quick_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_shell_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
+static void fill_merge_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 
 static const SortDescriptor sortRegistry[] = {
     { SORT_BUBBLE, "Bubble", run_bubble_step, reset_bubble_state, fill_bubble_telemetry },
     { SORT_INSERTION, "Insertion", run_insertion_step, reset_insertion_state, fill_insertion_telemetry },
     { SORT_SHELL, "Shell", run_shell_step, reset_shell_state, fill_shell_telemetry },
+    { SORT_MERGE, "Merge", run_merge_step, reset_merge_state, fill_merge_telemetry },
     { SORT_SELECTION, "Selection", run_selection_step, reset_selection_state, fill_selection_telemetry },
     { SORT_HEAP, "Heap", run_heap_step, reset_heap_state, fill_heap_telemetry },
     { SORT_QUICK, "Quick", run_quick_step, reset_quick_state, fill_quick_telemetry }
@@ -336,6 +341,20 @@ static void reset_shell_state(void)
     app.shellJ = app.shellGap;
     app.shellTemp = 0;
     app.shellHolding = false;
+}
+
+static void reset_merge_state(void)
+{
+    app.mergeWidth = 1;
+    app.mergeLeft = 0;
+    app.mergeMid = 0;
+    app.mergeRight = 0;
+    app.mergeI = 0;
+    app.mergeJ = 0;
+    app.mergeK = 0;
+    app.mergeCopyIndex = 0;
+    app.mergeActive = false;
+    app.mergeCopying = false;
 }
 
 static void reset_sort_state(bool reshuffle)
@@ -654,6 +673,11 @@ static void run_shell_step(void)
     shell_sort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.shellGap, &app.shellI, &app.shellJ, &app.shellTemp, &app.shellHolding, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
 }
 
+static void run_merge_step(void)
+{
+    merge_sort_step(numbers, mergeBuffer, knownSorted, app.arraySize, &app.sortingDone, &app.mergeWidth, &app.mergeLeft, &app.mergeMid, &app.mergeRight, &app.mergeI, &app.mergeJ, &app.mergeK, &app.mergeCopyIndex, &app.mergeActive, &app.mergeCopying, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+}
+
 static void fill_bubble_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
 {
     snprintf(line1, line1Size, "Bubble idx: %d  pass: %d", app.bubbleIndex, app.bubblePass);
@@ -694,6 +718,13 @@ static void fill_shell_telemetry(char *line1, size_t line1Size, char *line2, siz
     snprintf(line1, line1Size, "Gap: %d  i: %d  j: %d", app.shellGap, app.shellI, app.shellJ);
     snprintf(line2, line2Size, "Holding temp: %s  value: %d", app.shellHolding ? "yes" : "no", app.shellTemp);
     snprintf(line3, line3Size, "Compare idx: %d", app.shellJ - app.shellGap);
+}
+
+static void fill_merge_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
+{
+    snprintf(line1, line1Size, "Width: %d  left/mid/right: %d/%d/%d", app.mergeWidth, app.mergeLeft, app.mergeMid, app.mergeRight);
+    snprintf(line2, line2Size, "i:%d  j:%d  k:%d", app.mergeI, app.mergeJ, app.mergeK);
+    snprintf(line3, line3Size, "Phase: %s", app.mergeCopying ? "COPY BACK" : (app.mergeActive ? "MERGE" : "PREPARE"));
 }
 
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size)
@@ -894,6 +925,16 @@ int main(){
             .shellI = app.shellI,
             .shellJ = app.shellJ,
             .shellHolding = app.shellHolding,
+            .mergeWidth = app.mergeWidth,
+            .mergeLeft = app.mergeLeft,
+            .mergeMid = app.mergeMid,
+            .mergeRight = app.mergeRight,
+            .mergeI = app.mergeI,
+            .mergeJ = app.mergeJ,
+            .mergeK = app.mergeK,
+            .mergeCopyIndex = app.mergeCopyIndex,
+            .mergeActive = app.mergeActive,
+            .mergeCopying = app.mergeCopying,
             .showValues = app.showValues,
             .showHud = app.showHud,
             .showSettingsOverlay = app.showSettingsOverlay,

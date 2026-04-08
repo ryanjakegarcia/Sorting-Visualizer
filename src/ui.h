@@ -47,6 +47,16 @@ typedef struct UiDrawContext {
     int shellI;
     int shellJ;
     bool shellHolding;
+    int mergeWidth;
+    int mergeLeft;
+    int mergeMid;
+    int mergeRight;
+    int mergeI;
+    int mergeJ;
+    int mergeK;
+    int mergeCopyIndex;
+    bool mergeActive;
+    bool mergeCopying;
 
     bool showValues;
     bool showHud;

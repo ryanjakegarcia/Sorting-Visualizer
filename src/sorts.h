@@ -119,4 +119,28 @@ void shell_sort_step(
     CompletionSweepFn startCompletionSweep
 );
 
+void merge_sort_step(
+    int *numbers,
+    int *mergeBuffer,
+    bool *knownSorted,
+    int arraySize,
+    bool *sortingDone,
+    int *mergeWidth,
+    int *mergeLeft,
+    int *mergeMid,
+    int *mergeRight,
+    int *mergeI,
+    int *mergeJ,
+    int *mergeK,
+    int *mergeCopyIndex,
+    bool *mergeActive,
+    bool *mergeCopying,
+    unsigned long long *statComparisons,
+    unsigned long long *statSwaps,
+    CompareSoundFn playCompareSound,
+    SwapSoundFn playSwapSound,
+    SortedSoundFn playSortedSound,
+    CompletionSweepFn startCompletionSweep
+);
+
 #endif
