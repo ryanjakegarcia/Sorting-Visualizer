@@ -858,7 +858,7 @@ static void draw_benchmark_overlay(void)
     Rectangle fixedSeedButton = { (float)(panelX + 330), (float)buttonY, 96.0f, 24.0f };
     Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
     Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
-    Rectangle exportButton = { (float)(panelX + 16), (float)(buttonY + 34), 132.0f, 24.0f };
+    Rectangle exportButton = { (float)(panelX + 72), (float)buttonY, 132.0f, 24.0f };
 
     Vector2 mousePos = GetMousePosition();
     bool hoverRunsMinus = CheckCollisionPointRec(mousePos, runsMinusButton);
@@ -901,7 +901,7 @@ static void draw_benchmark_overlay(void)
     DrawText("Start", (int)startButton.x + 34, (int)startButton.y + 4, 16, RAYWHITE);
     DrawText("Export CSV", (int)exportButton.x + 14, (int)exportButton.y + 4, 16, RAYWHITE);
 
-    int statusY = buttonY + 30;
+    int statusY = buttonY + 34;
 
     if (benchmark.running) {
         const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode);
@@ -1342,7 +1342,7 @@ int main(){
                 Rectangle fixedSeedButton = { (float)(panelX + 330), (float)buttonY, 96.0f, 24.0f };
                 Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
                 Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
-                Rectangle exportButton = { (float)(panelX + 16), (float)(buttonY + 34), 132.0f, 24.0f };
+                Rectangle exportButton = { (float)(panelX + 72), (float)buttonY, 132.0f, 24.0f };
 
                 int tableY = panelY + 182;
                 int rowY = tableY + 28;
