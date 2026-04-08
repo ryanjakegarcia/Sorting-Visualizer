@@ -241,6 +241,7 @@ void bogosort_step(
     int *numbers,
     bool *knownSorted,
     int arraySize,
+    bool bogoUseFullArray,
     bool *sortingDone,
     int *bogoAttempts,
     int *bogoCheckIndex,

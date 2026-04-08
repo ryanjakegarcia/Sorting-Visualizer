@@ -1155,6 +1155,7 @@ void bogosort_step(
     int *numbers,
     bool *knownSorted,
     int arraySize,
+    bool bogoUseFullArray,
     bool *sortingDone,
     int *bogoAttempts,
     int *bogoCheckIndex,
@@ -1171,7 +1172,7 @@ void bogosort_step(
         return;
     }
 
-    int bogoSize = (arraySize < 10) ? arraySize : 10;
+    int bogoSize = bogoUseFullArray ? arraySize : ((arraySize < 10) ? arraySize : 10);
 
     if (arraySize <= 1) {
         *sortingDone = true;

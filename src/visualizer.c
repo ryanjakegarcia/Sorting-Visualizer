@@ -39,6 +39,7 @@ static const float masterVolumeStep = 0.05f;
 static const float autoNextSortDelay = 3.0f;
 static const char *presetPath = "presets/visualizer_preset.cfg";
 static const char *benchmarkCsvPath = "benchmarks/benchmark_results.csv";
+static const char *benchmarkProfilePath = "benchmarks/benchmark_profile.csv";
 
 typedef struct SortDescriptor {
     SortMode mode;
@@ -118,6 +119,7 @@ static void fill_counting_telemetry(char *line1, size_t line1Size, char *line2, 
 static void fill_introsort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static void fill_current_sort_telemetry(char *line1, size_t line1Size, char *line2, size_t line2Size, char *line3, size_t line3Size);
 static Color color_from_id(int colorId);
+static Color color_lerp(Color a, Color b, float t);
 
 static const SortDescriptor sortRegistry[] = {
     { SORT_BUBBLE, "Bubble", run_bubble_step, reset_bubble_state, fill_bubble_telemetry, COLOR_ID_RED, COLOR_ID_ORANGE, COLOR_ID_MAROON, COLOR_ID_SKYBLUE },
@@ -153,6 +155,31 @@ typedef struct BenchmarkResult {
     int runs;
 } BenchmarkResult;
 
+typedef enum BenchmarkSortClass {
+    BENCHMARK_CLASS_QUADRATIC,
+    BENCHMARK_CLASS_N_LOG_N,
+    BENCHMARK_CLASS_LINEAR,
+    BENCHMARK_CLASS_BOGO
+} BenchmarkSortClass;
+
+typedef struct BenchmarkProfileRow {
+    bool enabled;
+    float targetSeconds;
+    int requestedArraySize;
+    float requestedSpeedMultiplier;
+    bool minimalUiMode;
+} BenchmarkProfileRow;
+
+typedef struct BenchmarkProfile {
+    bool loaded;
+    unsigned int seed;
+    DistributionMode distributionMode;
+    int runsPerSort;
+    bool warmup;
+    bool defaultMinimalUiMode;
+    BenchmarkProfileRow rows[MAX_BENCHMARK_RESULTS];
+} BenchmarkProfile;
+
 typedef struct BenchmarkState {
     bool active;
     bool running;
@@ -166,13 +193,21 @@ typedef struct BenchmarkState {
     bool sortEnabled[MAX_BENCHMARK_RESULTS];
     BenchmarkResult results[MAX_BENCHMARK_RESULTS];
     int baselineNumbers[MAX_SIZE];
+    int previousNumbers[MAX_SIZE];
+    bool previousKnownSorted[MAX_SIZE];
     SortMode previousSort;
+    int previousArraySize;
+    float previousSpeedMultiplier;
+    DistributionMode previousDistributionMode;
+    bool previousMinimalUiMode;
     bool previousPaused;
     bool previousStepMode;
     bool configUseFixedSeed;
     unsigned int configFixedSeed;
     int configRunsPerSort;
     bool configWarmup;
+    float *speedMultiplierPtr;
+    BenchmarkProfile profile;
 } BenchmarkState;
 
 static BenchmarkState benchmark = { 0 };
@@ -187,10 +222,27 @@ static void benchmark_cancel(void);
 static void benchmark_update(void);
 static void benchmark_prepare_run_baseline(void);
 static int benchmark_build_sequence(void);
+static void benchmark_reset_profile_defaults(void);
+static bool benchmark_load_profile_file(const char *path);
+static bool benchmark_profile_parse_bool(const char *value, bool *outValue);
+static bool benchmark_profile_parse_distribution(const char *value, DistributionMode *outValue);
+static bool benchmark_profile_parse_ui_mode(const char *value, bool *outMinimalUiMode);
+static BenchmarkSortClass benchmark_get_sort_class(SortMode mode);
+static int benchmark_tune_array_size(SortMode mode, float targetSeconds, int requestedArraySize);
+static float benchmark_tune_speed_multiplier(SortMode mode, float targetSeconds, float requestedSpeedMultiplier);
+static void benchmark_apply_current_sort_profile(void);
 static bool benchmark_export_results_csv(void);
 static void benchmark_build_display_order(int *order, int count);
 static void draw_benchmark_overlay(void);
-static void draw_start_screen(float pulseTime);
+static void draw_benchmark_profile_summary(int panelX, int panelY);
+static void draw_start_screen(
+    float pulseTime,
+    float showcaseSortMaxTime,
+    const char *previewSortName,
+    Color themeA,
+    Color themeB,
+    float transitionT
+);
 
 static void set_status_text(const char *text)
 {
@@ -658,6 +710,20 @@ static const char *get_sort_name(void)
     return get_sort_name_by_mode(app.currentSort);
 }
 
+static Color color_lerp(Color a, Color b, float t)
+{
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+
+    Color out = {
+        (unsigned char)((1.0f - t) * (float)a.r + t * (float)b.r),
+        (unsigned char)((1.0f - t) * (float)a.g + t * (float)b.g),
+        (unsigned char)((1.0f - t) * (float)a.b + t * (float)b.b),
+        (unsigned char)((1.0f - t) * (float)a.a + t * (float)b.a)
+    };
+    return out;
+}
+
 static Color color_from_id(int colorId)
 {
     switch (colorId) {
@@ -673,6 +739,366 @@ static Color color_from_id(int colorId)
         case COLOR_ID_MAGENTA: return MAGENTA;
         default: return RED;
     }
+}
+
+static BenchmarkSortClass benchmark_get_sort_class(SortMode mode)
+{
+    switch (mode) {
+        case SORT_BUBBLE:
+        case SORT_INSERTION:
+        case SORT_SELECTION:
+        case SORT_COCKTAIL:
+        case SORT_GNOME:
+        case SORT_ODD_EVEN:
+        case SORT_PANCAKE:
+            return BENCHMARK_CLASS_QUADRATIC;
+        case SORT_RADIXSORT:
+        case SORT_COUNTING:
+            return BENCHMARK_CLASS_LINEAR;
+        case SORT_BOGOSORT:
+            return BENCHMARK_CLASS_BOGO;
+        default:
+            return BENCHMARK_CLASS_N_LOG_N;
+    }
+}
+
+static bool benchmark_profile_parse_bool(const char *value, bool *outValue)
+{
+    if (value == NULL || outValue == NULL) {
+        return false;
+    }
+
+    if (strcmp(value, "1") == 0 || strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 || strcmp(value, "on") == 0 || strcmp(value, "minimal") == 0) {
+        *outValue = true;
+        return true;
+    }
+
+    if (strcmp(value, "0") == 0 || strcmp(value, "false") == 0 || strcmp(value, "no") == 0 || strcmp(value, "off") == 0 || strcmp(value, "full") == 0) {
+        *outValue = false;
+        return true;
+    }
+
+    return false;
+}
+
+static bool benchmark_profile_parse_distribution(const char *value, DistributionMode *outValue)
+{
+    if (value == NULL || outValue == NULL) {
+        return false;
+    }
+
+    if (strcmp(value, "random") == 0) {
+        *outValue = DIST_RANDOM;
+        return true;
+    }
+    if (strcmp(value, "nearly_sorted") == 0) {
+        *outValue = DIST_NEARLY_SORTED;
+        return true;
+    }
+    if (strcmp(value, "reversed") == 0) {
+        *outValue = DIST_REVERSED;
+        return true;
+    }
+    if (strcmp(value, "few_unique") == 0) {
+        *outValue = DIST_FEW_UNIQUE;
+        return true;
+    }
+    if (strcmp(value, "sawtooth") == 0) {
+        *outValue = DIST_SAWTOOTH;
+        return true;
+    }
+
+    return false;
+}
+
+static bool benchmark_profile_parse_ui_mode(const char *value, bool *outMinimalUiMode)
+{
+    if (value == NULL || outMinimalUiMode == NULL) {
+        return false;
+    }
+
+    if (strcmp(value, "minimal") == 0) {
+        *outMinimalUiMode = true;
+        return true;
+    }
+    if (strcmp(value, "full") == 0) {
+        *outMinimalUiMode = false;
+        return true;
+    }
+
+    return benchmark_profile_parse_bool(value, outMinimalUiMode);
+}
+
+static int benchmark_default_array_size_for_class(BenchmarkSortClass sortClass)
+{
+    switch (sortClass) {
+        case BENCHMARK_CLASS_QUADRATIC: return 64;
+        case BENCHMARK_CLASS_LINEAR: return 384;
+        case BENCHMARK_CLASS_BOGO: return 8;
+        default: return 256;
+    }
+}
+
+static float benchmark_default_speed_for_class(BenchmarkSortClass sortClass)
+{
+    switch (sortClass) {
+        case BENCHMARK_CLASS_QUADRATIC: return 1.0f;
+        case BENCHMARK_CLASS_LINEAR: return 1.1f;
+        case BENCHMARK_CLASS_BOGO: return 0.7f;
+        default: return 1.0f;
+    }
+}
+
+static int benchmark_tune_array_size(SortMode mode, float targetSeconds, int requestedArraySize)
+{
+    BenchmarkSortClass sortClass = benchmark_get_sort_class(mode);
+    float target = (targetSeconds > 0.1f) ? targetSeconds : 4.0f;
+    int baseSize = (requestedArraySize > 0) ? requestedArraySize : benchmark_default_array_size_for_class(sortClass);
+    float tuned = (float)baseSize;
+
+    switch (sortClass) {
+        case BENCHMARK_CLASS_QUADRATIC:
+            tuned *= sqrtf(target / 4.0f);
+            break;
+        case BENCHMARK_CLASS_LINEAR:
+            tuned *= powf(target / 4.0f, 1.25f);
+            break;
+        case BENCHMARK_CLASS_BOGO:
+            tuned = 3.0f + (target * 0.8f);
+            break;
+        case BENCHMARK_CLASS_N_LOG_N:
+        default:
+            tuned *= (target / 4.0f);
+            break;
+    }
+
+    int result = (int)lroundf(tuned);
+    if (sortClass == BENCHMARK_CLASS_BOGO) {
+        if (result < 3) result = 3;
+        if (result > 10) result = 10;
+    } else {
+        if (result < 2) result = 2;
+        if (result > MAX_SIZE) result = MAX_SIZE;
+    }
+
+    return result;
+}
+
+static float benchmark_tune_speed_multiplier(SortMode mode, float targetSeconds, float requestedSpeedMultiplier)
+{
+    BenchmarkSortClass sortClass = benchmark_get_sort_class(mode);
+    float target = (targetSeconds > 0.1f) ? targetSeconds : 4.0f;
+    float speed = (requestedSpeedMultiplier > 0.0f) ? requestedSpeedMultiplier : benchmark_default_speed_for_class(sortClass);
+
+    switch (sortClass) {
+        case BENCHMARK_CLASS_QUADRATIC:
+            speed *= 4.0f / target;
+            break;
+        case BENCHMARK_CLASS_LINEAR:
+            speed *= 2.2f / target;
+            break;
+        case BENCHMARK_CLASS_BOGO:
+            speed *= 1.4f / target;
+            break;
+        case BENCHMARK_CLASS_N_LOG_N:
+        default:
+            speed *= 3.0f / target;
+            break;
+    }
+
+    if (speed < 0.1f) speed = 0.1f;
+    if (speed > 10.0f) speed = 10.0f;
+
+    return speed;
+}
+
+static void benchmark_reset_profile_defaults(void)
+{
+    benchmark.profile.loaded = false;
+    benchmark.profile.seed = 1337u;
+    benchmark.profile.distributionMode = DIST_RANDOM;
+    benchmark.profile.runsPerSort = 3;
+    benchmark.profile.warmup = false;
+    benchmark.profile.defaultMinimalUiMode = true;
+
+    for (int i = 0; i < MAX_BENCHMARK_RESULTS; i++) {
+        benchmark.profile.rows[i].enabled = false;
+        benchmark.profile.rows[i].targetSeconds = 4.0f;
+        benchmark.profile.rows[i].requestedArraySize = 0;
+        benchmark.profile.rows[i].requestedSpeedMultiplier = 1.0f;
+        benchmark.profile.rows[i].minimalUiMode = benchmark.profile.defaultMinimalUiMode;
+        benchmark.sortEnabled[i] = false;
+    }
+
+    for (int i = 0; i < SORT_REGISTRY_COUNT; i++) {
+        BenchmarkSortClass sortClass = benchmark_get_sort_class(sortRegistry[i].mode);
+        benchmark.profile.rows[i].enabled = true;
+        benchmark.profile.rows[i].targetSeconds = 4.0f;
+        benchmark.profile.rows[i].requestedArraySize = benchmark_default_array_size_for_class(sortClass);
+        benchmark.profile.rows[i].requestedSpeedMultiplier = benchmark_default_speed_for_class(sortClass);
+        benchmark.profile.rows[i].minimalUiMode = benchmark.profile.defaultMinimalUiMode;
+        benchmark.sortEnabled[i] = true;
+    }
+
+    benchmark.configUseFixedSeed = true;
+    benchmark.configFixedSeed = benchmark.profile.seed;
+    benchmark.configRunsPerSort = benchmark.profile.runsPerSort;
+    benchmark.configWarmup = benchmark.profile.warmup;
+}
+
+static void benchmark_apply_current_sort_profile(void)
+{
+    if (benchmark.currentSortIndex < 0 || benchmark.currentSortIndex >= benchmark.sequenceCount) {
+        return;
+    }
+
+    int resultIndex = benchmark.sequence[benchmark.currentSortIndex];
+    if (resultIndex < 0 || resultIndex >= SORT_REGISTRY_COUNT) {
+        return;
+    }
+
+    const BenchmarkProfileRow *row = &benchmark.profile.rows[resultIndex];
+    SortMode mode = sortRegistry[resultIndex].mode;
+
+    app.arraySize = benchmark_tune_array_size(mode, row->targetSeconds, row->requestedArraySize);
+    if (benchmark.speedMultiplierPtr != NULL) {
+        *benchmark.speedMultiplierPtr = benchmark_tune_speed_multiplier(mode, row->targetSeconds, row->requestedSpeedMultiplier);
+    }
+    app.minimalUiMode = row->minimalUiMode;
+    app.distributionMode = benchmark.profile.distributionMode;
+}
+
+static bool benchmark_load_profile_file(const char *path)
+{
+    FILE *file = fopen(path, "r");
+    if (file == NULL) {
+        return false;
+    }
+
+    benchmark_reset_profile_defaults();
+
+    char line[512];
+    bool seenAnySortRow = false;
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *cursor = line;
+        while (*cursor == ' ' || *cursor == '\t') cursor++;
+        if (*cursor == '#' || *cursor == '\n' || *cursor == '\r' || *cursor == '\0') {
+            continue;
+        }
+
+        char *newline = strpbrk(cursor, "\r\n");
+        if (newline != NULL) {
+            *newline = '\0';
+        }
+
+        char *token = strtok(cursor, ",");
+        if (token == NULL) {
+            continue;
+        }
+
+        if (strcmp(token, "global") == 0) {
+            char *key = strtok(NULL, ",");
+            char *value = strtok(NULL, ",");
+            if (key == NULL || value == NULL) {
+                continue;
+            }
+
+            if (strcmp(key, "seed") == 0) {
+                unsigned int parsedSeed = benchmark.profile.seed;
+                if (sscanf(value, "%u", &parsedSeed) == 1) {
+                    benchmark.profile.seed = parsedSeed;
+                }
+            } else if (strcmp(key, "distribution") == 0) {
+                DistributionMode distributionMode = benchmark.profile.distributionMode;
+                if (benchmark_profile_parse_distribution(value, &distributionMode)) {
+                    benchmark.profile.distributionMode = distributionMode;
+                }
+            } else if (strcmp(key, "runs_per_sort") == 0) {
+                int runs = benchmark.profile.runsPerSort;
+                if (sscanf(value, "%d", &runs) == 1 && runs > 0) {
+                    benchmark.profile.runsPerSort = runs;
+                }
+            } else if (strcmp(key, "warmup") == 0) {
+                bool warmup = benchmark.profile.warmup;
+                if (benchmark_profile_parse_bool(value, &warmup)) {
+                    benchmark.profile.warmup = warmup;
+                }
+            } else if (strcmp(key, "default_ui_mode") == 0) {
+                bool minimalUiMode = benchmark.profile.defaultMinimalUiMode;
+                if (benchmark_profile_parse_ui_mode(value, &minimalUiMode)) {
+                    benchmark.profile.defaultMinimalUiMode = minimalUiMode;
+                }
+            }
+            continue;
+        }
+
+        if (strcmp(token, "sort") == 0) {
+            char *sortName = strtok(NULL, ",");
+            if (sortName == NULL) {
+                continue;
+            }
+
+            int sortIndex = -1;
+            for (int i = 0; i < SORT_REGISTRY_COUNT; i++) {
+                if (strcmp(sortRegistry[i].name, sortName) == 0) {
+                    sortIndex = i;
+                    break;
+                }
+                sortIndex = -1;
+            }
+
+            if (sortIndex < 0 || sortIndex >= SORT_REGISTRY_COUNT) {
+                continue;
+            }
+
+            BenchmarkProfileRow *row = &benchmark.profile.rows[sortIndex];
+            row->enabled = false;
+            row->targetSeconds = 4.0f;
+            row->requestedArraySize = benchmark_default_array_size_for_class(benchmark_get_sort_class(sortRegistry[sortIndex].mode));
+            row->requestedSpeedMultiplier = benchmark_default_speed_for_class(benchmark_get_sort_class(sortRegistry[sortIndex].mode));
+            row->minimalUiMode = benchmark.profile.defaultMinimalUiMode;
+
+            char *pairKey = NULL;
+            char *pairValue = NULL;
+            while ((pairKey = strtok(NULL, ",")) != NULL) {
+                pairValue = strtok(NULL, ",");
+                if (pairValue == NULL) {
+                    break;
+                }
+
+                if (strcmp(pairKey, "enabled") == 0) {
+                    benchmark_profile_parse_bool(pairValue, &row->enabled);
+                } else if (strcmp(pairKey, "target_seconds") == 0) {
+                    sscanf(pairValue, "%f", &row->targetSeconds);
+                } else if (strcmp(pairKey, "n") == 0 || strcmp(pairKey, "size") == 0) {
+                    sscanf(pairValue, "%d", &row->requestedArraySize);
+                } else if (strcmp(pairKey, "speed") == 0 || strcmp(pairKey, "speed_factor") == 0) {
+                    sscanf(pairValue, "%f", &row->requestedSpeedMultiplier);
+                } else if (strcmp(pairKey, "ui_mode") == 0 || strcmp(pairKey, "ui") == 0) {
+                    benchmark_profile_parse_ui_mode(pairValue, &row->minimalUiMode);
+                }
+            }
+
+            seenAnySortRow = true;
+        }
+    }
+
+    fclose(file);
+
+    for (int i = 0; i < SORT_REGISTRY_COUNT; i++) {
+        benchmark.sortEnabled[i] = benchmark.profile.rows[i].enabled;
+    }
+
+    benchmark.profile.loaded = seenAnySortRow;
+    benchmark.configUseFixedSeed = true;
+    benchmark.configFixedSeed = benchmark.profile.seed;
+    benchmark.configRunsPerSort = benchmark.profile.runsPerSort;
+    benchmark.configWarmup = benchmark.profile.warmup;
+    benchmark.selectedConfigSortIndex = 0;
+    benchmark_build_sequence();
+
+    return seenAnySortRow;
 }
 
 static void benchmark_begin_current_sort(void)
@@ -823,8 +1249,14 @@ static void benchmark_start(void)
     }
 
     benchmark.previousSort = app.currentSort;
+    benchmark.previousArraySize = app.arraySize;
+    benchmark.previousSpeedMultiplier = (benchmark.speedMultiplierPtr != NULL) ? *benchmark.speedMultiplierPtr : 1.0f;
+    benchmark.previousDistributionMode = app.distributionMode;
+    benchmark.previousMinimalUiMode = app.minimalUiMode;
     benchmark.previousPaused = app.paused;
     benchmark.previousStepMode = app.stepMode;
+    memcpy(benchmark.previousNumbers, numbers, sizeof(benchmark.previousNumbers));
+    memcpy(benchmark.previousKnownSorted, knownSorted, sizeof(benchmark.previousKnownSorted));
     benchmark.resultCount = SORT_REGISTRY_COUNT;
     benchmark.currentSortIndex = 0;
     benchmark.currentRunIndex = benchmark.configWarmup ? -1 : 0;
@@ -843,6 +1275,7 @@ static void benchmark_start(void)
         benchmark.results[i].runs = 0;
     }
 
+    benchmark_apply_current_sort_profile();
     benchmark_prepare_run_baseline();
 
     benchmark_begin_current_sort();
@@ -854,10 +1287,19 @@ static void benchmark_cancel(void)
     benchmark.running = false;
     benchmark.active = false;
     app.currentSort = benchmark.previousSort;
-    reset_sort_state(true);
+    app.arraySize = benchmark.previousArraySize;
+    app.distributionMode = benchmark.previousDistributionMode;
+    app.minimalUiMode = benchmark.previousMinimalUiMode;
+    if (benchmark.speedMultiplierPtr != NULL) {
+        *benchmark.speedMultiplierPtr = benchmark.previousSpeedMultiplier;
+    }
+    reset_sort_state(false);
+    memcpy(numbers, benchmark.previousNumbers, (size_t)benchmark.previousArraySize * sizeof(numbers[0]));
+    memcpy(knownSorted, benchmark.previousKnownSorted, (size_t)benchmark.previousArraySize * sizeof(knownSorted[0]));
     app.stepMode = benchmark.previousStepMode;
     app.paused = benchmark.previousPaused;
     app.pauseMenuActive = false;
+    reset_completion_effects();
     set_status_text("Benchmark cancelled");
 }
 
@@ -885,6 +1327,7 @@ static void benchmark_update(void)
 
     benchmark.currentSortIndex++;
     if (benchmark.currentSortIndex < benchmark.sequenceCount) {
+        benchmark_apply_current_sort_profile();
         benchmark_begin_current_sort();
         return;
     }
@@ -893,6 +1336,7 @@ static void benchmark_update(void)
         benchmark.inWarmup = false;
         benchmark.currentRunIndex = 0;
         benchmark.currentSortIndex = 0;
+        benchmark_apply_current_sort_profile();
         benchmark_prepare_run_baseline();
         benchmark_begin_current_sort();
         set_status_text("Benchmark warmup complete");
@@ -902,6 +1346,7 @@ static void benchmark_update(void)
     benchmark.currentRunIndex++;
     if (benchmark.currentRunIndex < benchmark.configRunsPerSort) {
         benchmark.currentSortIndex = 0;
+        benchmark_apply_current_sort_profile();
         benchmark_prepare_run_baseline();
         benchmark_begin_current_sort();
         return;
@@ -910,11 +1355,19 @@ static void benchmark_update(void)
     benchmark.running = false;
     benchmark.active = true;
     app.currentSort = benchmark.previousSort;
-    memcpy(numbers, benchmark.baselineNumbers, (size_t)app.arraySize * sizeof(numbers[0]));
+    app.arraySize = benchmark.previousArraySize;
+    app.distributionMode = benchmark.previousDistributionMode;
+    app.minimalUiMode = benchmark.previousMinimalUiMode;
+    if (benchmark.speedMultiplierPtr != NULL) {
+        *benchmark.speedMultiplierPtr = benchmark.previousSpeedMultiplier;
+    }
     reset_sort_state(false);
+    memcpy(numbers, benchmark.previousNumbers, (size_t)benchmark.previousArraySize * sizeof(numbers[0]));
+    memcpy(knownSorted, benchmark.previousKnownSorted, (size_t)benchmark.previousArraySize * sizeof(knownSorted[0]));
     app.stepMode = benchmark.previousStepMode;
     app.paused = true;
     app.pauseMenuActive = false;
+    reset_completion_effects();
     set_status_text("Benchmark complete (X to hide)");
 }
 
@@ -939,6 +1392,7 @@ static void draw_benchmark_overlay(void)
     DrawText(TextFormat("N=%d  Dist=%s  Sorts=%d/%d", app.arraySize, get_distribution_name(), benchmark.sequenceCount, SORT_REGISTRY_COUNT), panelX + 16, panelY + 44, 20, LIGHTGRAY);
     DrawText(TextFormat("Config: Runs[-/=]%d  Seed[Z]:%s  Warmup[W]:%s", benchmark.configRunsPerSort, benchmark.configUseFixedSeed ? "ON" : "OFF", benchmark.configWarmup ? "ON" : "OFF"), panelX + 16, panelY + 68, 18, LIGHTGRAY);
     DrawText(TextFormat("Seed Value [,/.]: %u  Subset [LEFT/RIGHT], Toggle[;], Enter=start", benchmark.configFixedSeed), panelX + 16, panelY + 90, 18, LIGHTGRAY);
+    draw_benchmark_profile_summary(panelX, panelY);
 
     int buttonY = panelY + 118;
     Rectangle runsMinusButton = { (float)(panelX + 16), (float)buttonY, 24.0f, 24.0f };
@@ -949,6 +1403,8 @@ static void draw_benchmark_overlay(void)
     Rectangle warmupButton = { (float)(panelX + 430), (float)buttonY, 96.0f, 24.0f };
     Rectangle startButton = { (float)(panelX + 530), (float)buttonY, 114.0f, 24.0f };
     Rectangle exportButton = { (float)(panelX + 72), (float)buttonY, 132.0f, 24.0f };
+    int secondRowY = buttonY + 30;
+    Rectangle loadProfileButton = { (float)(panelX + 16), (float)secondRowY, 132.0f, 24.0f };
 
     Vector2 mousePos = GetMousePosition();
     bool hoverRunsMinus = CheckCollisionPointRec(mousePos, runsMinusButton);
@@ -959,8 +1415,9 @@ static void draw_benchmark_overlay(void)
     bool hoverWarmup = CheckCollisionPointRec(mousePos, warmupButton);
     bool hoverStart = CheckCollisionPointRec(mousePos, startButton);
     bool hoverExport = CheckCollisionPointRec(mousePos, exportButton);
+    bool hoverLoadProfile = CheckCollisionPointRec(mousePos, loadProfileButton);
 
-    if (hoverRunsMinus || hoverRunsPlus || hoverSeedMinus || hoverSeedPlus || hoverFixedSeed || hoverWarmup || hoverStart || hoverExport) {
+    if (hoverRunsMinus || hoverRunsPlus || hoverSeedMinus || hoverSeedPlus || hoverFixedSeed || hoverWarmup || hoverStart || hoverExport || hoverLoadProfile) {
         SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
     }
 
@@ -972,6 +1429,7 @@ static void draw_benchmark_overlay(void)
     DrawRectangleRec(warmupButton, Fade(benchmark.configWarmup ? DARKGREEN : DARKGRAY, hoverWarmup ? 0.95f : 0.8f));
     DrawRectangleRec(startButton, Fade(benchmark.running ? DARKGRAY : DARKBLUE, hoverStart ? 1.0f : 0.85f));
     DrawRectangleRec(exportButton, Fade(benchmark.running ? DARKGRAY : DARKPURPLE, hoverExport ? 1.0f : 0.85f));
+    DrawRectangleRec(loadProfileButton, Fade(benchmark.running ? DARKGRAY : DARKGREEN, hoverLoadProfile ? 1.0f : 0.85f));
 
     DrawRectangleLinesEx(runsMinusButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(runsPlusButton, 1.0f, LIGHTGRAY);
@@ -981,6 +1439,7 @@ static void draw_benchmark_overlay(void)
     DrawRectangleLinesEx(warmupButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(startButton, 1.0f, LIGHTGRAY);
     DrawRectangleLinesEx(exportButton, 1.0f, LIGHTGRAY);
+    DrawRectangleLinesEx(loadProfileButton, 1.0f, LIGHTGRAY);
 
     DrawText("-", (int)runsMinusButton.x + 8, (int)runsMinusButton.y + 2, 20, RAYWHITE);
     DrawText("+", (int)runsPlusButton.x + 7, (int)runsPlusButton.y + 1, 20, RAYWHITE);
@@ -990,8 +1449,9 @@ static void draw_benchmark_overlay(void)
     DrawText("Warmup", (int)warmupButton.x + 18, (int)warmupButton.y + 4, 16, RAYWHITE);
     DrawText("Start", (int)startButton.x + 34, (int)startButton.y + 4, 16, RAYWHITE);
     DrawText("Export CSV", (int)exportButton.x + 14, (int)exportButton.y + 4, 16, RAYWHITE);
+    DrawText("Load Profile", (int)loadProfileButton.x + 10, (int)loadProfileButton.y + 4, 16, RAYWHITE);
 
-    int statusY = buttonY + 34;
+    int statusY = secondRowY + 34;
 
     if (benchmark.running) {
         const char *runningName = get_sort_name_by_mode(sortRegistry[benchmark.sequence[benchmark.currentSortIndex]].mode);
@@ -1068,21 +1528,42 @@ static void draw_benchmark_overlay(void)
     }
 }
 
-static void draw_start_screen(float pulseTime)
+static void draw_benchmark_profile_summary(int panelX, int panelY)
+{
+    const char *profileName = benchmark.profile.loaded ? benchmarkProfilePath : "built-in defaults";
+    DrawText(TextFormat("Profile: %s  [O]", profileName), panelX + 16, panelY + 112, 18, SKYBLUE);
+    DrawText(TextFormat("Tuning: target time -> heuristic by sort class  Seed:%u  Runs:%d", benchmark.configFixedSeed, benchmark.configRunsPerSort), panelX + 16, panelY + 134, 18, LIGHTGRAY);
+}
+
+static void draw_start_screen(
+    float pulseTime,
+    float showcaseSortMaxTime,
+    const char *previewSortName,
+    Color themeA,
+    Color themeB,
+    float transitionT
+)
 {
     float pulse = 0.55f + 0.45f * (sinf(pulseTime * 2.2f) * 0.5f + 0.5f);
+    float slide = (1.0f - transitionT) * 18.0f;
     int cardW = 920;
     int cardH = 520;
     int cardX = (WIDTH - cardW) / 2;
     int cardY = (HEIGHT - cardH) / 2;
 
-    DrawRectangleGradientV(0, 0, WIDTH, HEIGHT, (Color){ 10, 16, 28, 120 }, (Color){ 5, 8, 14, 140 });
+    Color topA = color_lerp((Color){ 10, 16, 28, 255 }, themeA, 0.22f);
+    Color topB = color_lerp((Color){ 5, 8, 14, 255 }, themeB, 0.18f);
+    DrawRectangleGradientV(0, 0, WIDTH, HEIGHT, (Color){ topA.r, topA.g, topA.b, 120 }, (Color){ topB.r, topB.g, topB.b, 140 });
 
-    DrawCircle(WIDTH - 180, 120, 220.0f, Fade(SKYBLUE, 0.07f));
-    DrawCircle(180, HEIGHT - 140, 200.0f, Fade(ORANGE, 0.06f));
+    DrawCircle(WIDTH - 180, 120, 220.0f, Fade(themeA, 0.08f));
+    DrawCircle(180, HEIGHT - 140, 200.0f, Fade(themeB, 0.08f));
 
     DrawRectangle(cardX, cardY, cardW, cardH, Fade(BLACK, 0.72f));
-    DrawRectangleLinesEx((Rectangle){ (float)cardX, (float)cardY, (float)cardW, (float)cardH }, 2.0f, Fade(SKYBLUE, 0.85f));
+    DrawRectangleLinesEx((Rectangle){ (float)cardX, (float)cardY, (float)cardW, (float)cardH }, 2.0f, Fade(themeA, 0.90f));
+
+    DrawRectangle(cardX + 54, cardY + 24, 330, 28, Fade(themeB, 0.30f));
+    DrawRectangleLinesEx((Rectangle){ (float)(cardX + 54), (float)(cardY + 24), 330.0f, 28.0f }, 1.0f, Fade(themeA, 0.90f));
+    DrawText(TextFormat("Now previewing: %s", previewSortName), cardX + 62 + (int)slide, cardY + 30, 18, RAYWHITE);
 
     DrawText("SORTING VISUALIZER", cardX + 56, cardY + 58, 64, RAYWHITE);
     DrawText("Interactive algorithm visuals, audio cues, and benchmark tooling", cardX + 60, cardY + 132, 24, LIGHTGRAY);
@@ -1091,19 +1572,29 @@ static void draw_start_screen(float pulseTime)
     DrawText("TAB: Cycle sort      D: Cycle distribution      R: Reshuffle", cardX + 60, cardY + 236, 24, LIGHTGRAY);
     DrawText("M/N: Step mode       SPACE: Pause menu           X: Benchmark", cardX + 60, cardY + 272, 24, LIGHTGRAY);
     DrawText("V/L/H/G/T/B/U: UI toggles       [ / ]: Master volume", cardX + 60, cardY + 308, 24, LIGHTGRAY);
+    DrawText(TextFormat("Showcase cycle: [1] 2.0s   [2] 4.0s   [3] 6.0s   Current: %.1fs", showcaseSortMaxTime), cardX + 60, cardY + 344, 24, LIGHTGRAY);
 
     DrawText("Press ENTER, SPACE, or LEFT CLICK to start", cardX + 60, cardY + 392, 34, Fade(YELLOW, pulse));
     DrawText("ESC closes the app", cardX + 60, cardY + 438, 24, LIGHTGRAY);
+
+    if (transitionT < 1.0f) {
+        float fadeAlpha = (1.0f - transitionT) * 0.18f;
+        DrawRectangle(0, 0, WIDTH, HEIGHT, Fade(themeA, fadeAlpha));
+    }
 }
 
 static void start_completion_sweep(void)
 {
+    if (splashPreviewMuted) {
+        return;
+    }
+
     audio_start_completion_sweep(&app.audio, (!splashPreviewMuted) && app.finishAudioEnabled, app.arraySize);
 }
 
 static void update_completion_sweep(float dt)
 {
-    audio_update_completion_sweep(&app.audio, dt, app.finishAudioEnabled, app.arraySize);
+    audio_update_completion_sweep(&app.audio, dt, (!splashPreviewMuted) && app.finishAudioEnabled, app.arraySize);
 }
 
 static void run_bubble_step(void)
@@ -1303,7 +1794,7 @@ static void fill_radixsort_telemetry(char *line1, size_t line1Size, char *line2,
 
 static void run_bogosort_step(void)
 {
-    bogosort_step(numbers, knownSorted, app.arraySize, &app.sortingDone, &app.bogoAttempts, &app.bogoCheckIndex, &app.bogoIsChecking, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
+    bogosort_step(numbers, knownSorted, app.arraySize, splashPreviewMuted, &app.sortingDone, &app.bogoAttempts, &app.bogoCheckIndex, &app.bogoIsChecking, &app.statComparisons, &app.statSwaps, play_compare_sound, play_swap_sound, play_sorted_sound, start_completion_sweep);
 }
 
 static void reset_bogosort_state(void)
@@ -1410,6 +1901,10 @@ int main(){
     float speedStep = 0.1f;
     float baseDelay = 0.05f;
     float stepTimer = 0.0f;
+    float splashSortTimer = 0.0f;
+    float splashShowcaseSortMaxTime = 4.0f;
+    float splashTransitionTimer = 0.0f;
+    const float splashTransitionDuration = 0.40f;
     bool showStartScreen = true;
 
     benchmark.configUseFixedSeed = true;
@@ -1417,6 +1912,8 @@ int main(){
     benchmark.configRunsPerSort = 3;
     benchmark.configWarmup = false;
     benchmark.selectedConfigSortIndex = 0;
+    benchmark.speedMultiplierPtr = &speedMultiplier;
+    benchmark_reset_profile_defaults();
     for (int i = 0; i < SORT_REGISTRY_COUNT && i < MAX_BENCHMARK_RESULTS; i++) {
         benchmark.sortEnabled[i] = true;
     }
@@ -1429,6 +1926,23 @@ int main(){
         audio_begin_frame(&app.audio);
 
         if (showStartScreen) {
+            Rectangle splashCardRect = {
+                (float)((WIDTH - 920) / 2),
+                (float)((HEIGHT - 520) / 2),
+                920.0f,
+                520.0f
+            };
+
+            if (IsKeyPressed(KEY_ONE)) {
+                splashShowcaseSortMaxTime = 2.0f;
+            }
+            if (IsKeyPressed(KEY_TWO)) {
+                splashShowcaseSortMaxTime = 4.0f;
+            }
+            if (IsKeyPressed(KEY_THREE)) {
+                splashShowcaseSortMaxTime = 6.0f;
+            }
+
             splashPreviewMuted = true;
             app.paused = false;
             app.pauseMenuActive = false;
@@ -1437,26 +1951,56 @@ int main(){
             app.stepOnceRequested = false;
 
             stepTimer += dt;
+            splashSortTimer += dt;
             float splashAnimationDelay = baseDelay / 2.0f;
             while (stepTimer >= splashAnimationDelay && !app.sortingDone) {
                 run_current_sort_step();
                 stepTimer -= splashAnimationDelay;
             }
 
+            bool shouldCycleSort = false;
             if (app.sortingDone && !audio_completion_sweep_active(&app.audio)) {
                 app.autoNextSortTimer += dt;
                 if (app.autoNextSortTimer >= 0.9f) {
-                    cycle_sort_mode();
-                    stepTimer = 0.0f;
+                    shouldCycleSort = true;
                 }
             }
 
-            update_completion_sweep(dt);
+            if (splashSortTimer >= splashShowcaseSortMaxTime) {
+                shouldCycleSort = true;
+            }
+
+            splashTransitionTimer += dt;
+            if (splashTransitionTimer > splashTransitionDuration) {
+                splashTransitionTimer = splashTransitionDuration;
+            }
 
             int splashSortIndex = get_sort_index(app.currentSort);
             if (splashSortIndex < 0) {
                 splashSortIndex = 0;
             }
+
+            const char *previewSortName = sortRegistry[splashSortIndex].name;
+            Color splashThemeA = color_from_id(sortRegistry[splashSortIndex].colorAId);
+            Color splashThemeB = color_from_id(sortRegistry[splashSortIndex].colorBId);
+
+            if (shouldCycleSort) {
+                cycle_sort_mode();
+                stepTimer = 0.0f;
+                splashSortTimer = 0.0f;
+                app.autoNextSortTimer = 0.0f;
+                splashTransitionTimer = 0.0f;
+
+                splashSortIndex = get_sort_index(app.currentSort);
+                if (splashSortIndex < 0) {
+                    splashSortIndex = 0;
+                }
+                previewSortName = sortRegistry[splashSortIndex].name;
+                splashThemeA = color_from_id(sortRegistry[splashSortIndex].colorAId);
+                splashThemeB = color_from_id(sortRegistry[splashSortIndex].colorBId);
+            }
+
+            update_completion_sweep(dt);
 
             UiDrawContext splashUi = {
                 .sortColorA = color_from_id(sortRegistry[splashSortIndex].colorAId),
@@ -1512,6 +2056,7 @@ int main(){
                 .bogoAttempts = app.bogoAttempts,
                 .bogoCheckIndex = app.bogoCheckIndex,
                 .bogoIsChecking = app.bogoIsChecking,
+                .splashPreviewMode = true,
                 .oddEvenIndex = app.oddEvenIndex,
                 .pancakeCurrentSize = app.pancakeCurrentSize,
                 .pancakePhase = app.pancakePhase,
@@ -1542,14 +2087,30 @@ int main(){
             SetMouseCursor(MOUSE_CURSOR_DEFAULT);
             ClearBackground(BLACK);
             draw_elements(&splashUi);
-            draw_start_screen((float)GetTime());
+            draw_start_screen(
+                (float)GetTime(),
+                splashShowcaseSortMaxTime,
+                previewSortName,
+                splashThemeA,
+                splashThemeB,
+                splashTransitionTimer / splashTransitionDuration
+            );
             EndDrawing();
 
-            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            bool splashClickRequested = false;
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Vector2 mousePos = GetMousePosition();
+                splashClickRequested = CheckCollisionPointRec(mousePos, splashCardRect);
+            }
+
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || splashClickRequested) {
                 showStartScreen = false;
                 splashPreviewMuted = false;
                 stepTimer = 0.0f;
+                splashSortTimer = 0.0f;
                 reset_completion_effects();
+                reset_sort_state(true);
+                app.minimalUiMode = true;
             }
 
             continue;
@@ -1757,6 +2318,14 @@ int main(){
                     stepTimer = 0.0f;
                 }
 
+                if (IsKeyPressed(KEY_O) && !benchmark.running) {
+                    if (benchmark_load_profile_file(benchmarkProfilePath)) {
+                        set_status_text(TextFormat("Benchmark profile loaded: %s", benchmarkProfilePath));
+                    } else {
+                        set_status_text(TextFormat("Benchmark profile missing: %s", benchmarkProfilePath));
+                    }
+                }
+
                 if (!benchmark.running && IsKeyPressed(KEY_E)) {
                     benchmark_export_results_csv();
                 }
@@ -1933,6 +2502,7 @@ int main(){
             .bogoAttempts = app.bogoAttempts,
             .bogoCheckIndex = app.bogoCheckIndex,
             .bogoIsChecking = app.bogoIsChecking,
+            .splashPreviewMode = false,
             .oddEvenIndex = app.oddEvenIndex,
             .oddEvenStart = app.oddEvenStart,
             .oddEvenSwappedThisRound = app.oddEvenSwappedThisRound,

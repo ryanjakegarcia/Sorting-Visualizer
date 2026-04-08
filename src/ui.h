@@ -91,6 +91,7 @@ typedef struct UiDrawContext {
     int bogoAttempts;
     int bogoCheckIndex;
     bool bogoIsChecking;
+    bool splashPreviewMode;
     int oddEvenIndex;
     int oddEvenStart;
     bool oddEvenSwappedThisRound;

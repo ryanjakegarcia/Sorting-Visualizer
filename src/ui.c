@@ -213,7 +213,7 @@ void draw_elements(const UiDrawContext *ctx)
         } else if (ctx->currentSort == SORT_RADIXSORT && !ctx->sortingDone && i < ctx->radixIndex) {
             barColor = ctx->sortColorA;
         } else if (ctx->currentSort == SORT_BOGOSORT && !ctx->sortingDone) {
-            int bogoSize = (ctx->arraySize < 10) ? ctx->arraySize : 10;
+            int bogoSize = ctx->splashPreviewMode ? ctx->arraySize : ((ctx->arraySize < 10) ? ctx->arraySize : 10);
             if (i < bogoSize) {
                 barColor = ctx->sortColorA;  // Highlight the range being sorted
             }

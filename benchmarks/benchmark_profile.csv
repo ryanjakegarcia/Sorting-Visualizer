@@ -1,0 +1,26 @@
+# benchmark_profile_v1
+# global, key, value
+global,seed,1337
+global,distribution,random
+global,runs_per_sort,3
+global,warmup,0
+global,default_ui_mode,minimal
+
+# sort,name,key,value pairs
+sort,Bubble,enabled,1,target_seconds,4.0,n,64,speed,1.0,ui_mode,minimal
+sort,Insertion,enabled,1,target_seconds,4.0,n,72,speed,1.0,ui_mode,minimal
+sort,Shell,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
+sort,Merge,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
+sort,Selection,enabled,1,target_seconds,4.0,n,80,speed,1.0,ui_mode,minimal
+sort,Heap,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
+sort,Quick,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
+sort,Cocktail,enabled,1,target_seconds,4.0,n,64,speed,1.0,ui_mode,minimal
+sort,Gnome,enabled,1,target_seconds,4.0,n,64,speed,1.0,ui_mode,minimal
+sort,Comb,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
+sort,Timsort,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
+sort,Radixsort,enabled,1,target_seconds,4.0,n,384,speed,1.0,ui_mode,minimal
+sort,Bogosort,enabled,1,target_seconds,4.0,n,8,speed,0.7,ui_mode,minimal
+sort,Odd-Even,enabled,1,target_seconds,4.0,n,64,speed,1.0,ui_mode,minimal
+sort,Pancake,enabled,1,target_seconds,4.0,n,80,speed,1.0,ui_mode,minimal
+sort,Counting,enabled,1,target_seconds,4.0,n,384,speed,1.0,ui_mode,minimal
+sort,Introsort,enabled,1,target_seconds,4.0,n,256,speed,1.0,ui_mode,minimal
