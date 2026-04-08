@@ -14,6 +14,8 @@ void preset_apply_defaults(PresetSettings *settings)
     settings->showValues = false;
     settings->showLegend = true;
     settings->showHud = true;
+    settings->showTelemetry = true;
+    settings->showSizeInputBox = true;
     settings->masterVolume = 0.8f;
 }
 
@@ -33,6 +35,8 @@ bool preset_save_to_file(const char *path, const PresetSettings *settings)
     fprintf(f, "values %d\n", settings->showValues ? 1 : 0);
     fprintf(f, "legend %d\n", settings->showLegend ? 1 : 0);
     fprintf(f, "hud %d\n", settings->showHud ? 1 : 0);
+    fprintf(f, "telemetry %d\n", settings->showTelemetry ? 1 : 0);
+    fprintf(f, "sizebox %d\n", settings->showSizeInputBox ? 1 : 0);
     fprintf(f, "volume %.4f\n", settings->masterVolume);
 
     fclose(f);
@@ -79,6 +83,12 @@ bool preset_load_from_file(const char *path, PresetSettings *settings)
         } else if (strcmp(key, "hud") == 0) {
             int v = settings->showHud ? 1 : 0;
             if (fscanf(f, "%d", &v) == 1) settings->showHud = (v != 0);
+        } else if (strcmp(key, "telemetry") == 0) {
+            int v = settings->showTelemetry ? 1 : 0;
+            if (fscanf(f, "%d", &v) == 1) settings->showTelemetry = (v != 0);
+        } else if (strcmp(key, "sizebox") == 0) {
+            int v = settings->showSizeInputBox ? 1 : 0;
+            if (fscanf(f, "%d", &v) == 1) settings->showSizeInputBox = (v != 0);
         } else if (strcmp(key, "volume") == 0) {
             float v = settings->masterVolume;
             if (fscanf(f, "%f", &v) == 1) settings->masterVolume = v;

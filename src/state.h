@@ -14,6 +14,8 @@ typedef struct PresetSettings {
     bool showValues;
     bool showLegend;
     bool showHud;
+    bool showTelemetry;
+    bool showSizeInputBox;
     float masterVolume;
 } PresetSettings;
 

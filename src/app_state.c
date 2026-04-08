@@ -52,6 +52,8 @@ void app_state_init_defaults(RuntimeState *state)
     state->showValues = false;
     state->showLegend = true;
     state->showHud = true;
+    state->showTelemetry = true;
+    state->showSizeInputBox = true;
     state->minimalUiMode = false;
     state->masterVolume = 0.8f;
     state->autoNextSortTimer = 0.0f;

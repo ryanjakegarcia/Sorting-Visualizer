@@ -30,6 +30,8 @@ typedef struct ControllerContext {
     bool *showValues;
     bool *showLegend;
     bool *showHud;
+    bool *showTelemetry;
+    bool *showSizeInputBox;
     bool *minimalUiMode;
     bool *compareAudioEnabled;
     bool *swapAudioEnabled;

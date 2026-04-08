@@ -46,6 +46,8 @@ typedef struct UiDrawContext {
 
     bool showValues;
     bool showHud;
+    bool showTelemetry;
+    bool showSizeInputBox;
     bool sizeInputActive;
     const char *sizeInput;
 

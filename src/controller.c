@@ -13,6 +13,8 @@ enum {
     MENU_TOGGLE_HUD,
     MENU_TOGGLE_LEGEND,
     MENU_TOGGLE_VALUES,
+    MENU_TOGGLE_TELEMETRY,
+    MENU_TOGGLE_SIZE_BOX,
     MENU_TOGGLE_MINIMAL,
     MENU_TOGGLE_COMPARE_AUDIO,
     MENU_TOGGLE_SWAP_AUDIO,
@@ -38,7 +40,7 @@ static int sanitize_array_size(int requested, int maxSize, bool *usedDefault)
 
 void controller_handle_input(ControllerContext *ctx, float dt)
 {
-    if (IsKeyPressed(KEY_ESCAPE) && !*ctx->sizeInputActive) {
+    if (IsKeyPressed(KEY_SPACE) && !*ctx->sizeInputActive) {
         if (!*ctx->pauseMenuActive) {
             *ctx->pausedBeforeMenu = *ctx->paused;
             *ctx->paused = true;
@@ -50,7 +52,7 @@ void controller_handle_input(ControllerContext *ctx, float dt)
         }
     }
 
-    bool allowSizeBoxInteraction = *ctx->showHud && !*ctx->minimalUiMode && !*ctx->pauseMenuActive;
+    bool allowSizeBoxInteraction = *ctx->showHud && *ctx->showSizeInputBox && !*ctx->minimalUiMode && !*ctx->pauseMenuActive;
     Rectangle sizeBox = ui_get_size_input_box(ctx->windowHeight);
     if (allowSizeBoxInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         Vector2 mousePos = GetMousePosition();
@@ -90,9 +92,6 @@ void controller_handle_input(ControllerContext *ctx, float dt)
             *ctx->sizeInputActive = false;
         }
 
-        if (IsKeyPressed(KEY_ESCAPE)) {
-            *ctx->sizeInputActive = false;
-        }
     }
 
     if (*ctx->pauseMenuActive && !*ctx->sizeInputActive) {
@@ -121,6 +120,13 @@ void controller_handle_input(ControllerContext *ctx, float dt)
                     break;
                 case MENU_TOGGLE_VALUES:
                     *ctx->showValues = !*ctx->showValues;
+                    break;
+                case MENU_TOGGLE_TELEMETRY:
+                    *ctx->showTelemetry = !*ctx->showTelemetry;
+                    break;
+                case MENU_TOGGLE_SIZE_BOX:
+                    *ctx->showSizeInputBox = !*ctx->showSizeInputBox;
+                    if (!*ctx->showSizeInputBox) *ctx->sizeInputActive = false;
                     break;
                 case MENU_TOGGLE_MINIMAL:
                     *ctx->minimalUiMode = !*ctx->minimalUiMode;
@@ -169,10 +175,6 @@ void controller_handle_input(ControllerContext *ctx, float dt)
     }
 
     if (!*ctx->sizeInputActive && !*ctx->pauseMenuActive) {
-        if (IsKeyPressed(KEY_SPACE)) {
-            *ctx->paused = !*ctx->paused;
-        }
-
         if (IsKeyPressed(KEY_M)) {
             *ctx->stepMode = !*ctx->stepMode;
             *ctx->stepOnceRequested = false;
@@ -192,6 +194,17 @@ void controller_handle_input(ControllerContext *ctx, float dt)
 
         if (IsKeyPressed(KEY_H)) {
             *ctx->showHud = !*ctx->showHud;
+        }
+
+        if (IsKeyPressed(KEY_T)) {
+            *ctx->showTelemetry = !*ctx->showTelemetry;
+        }
+
+        if (IsKeyPressed(KEY_B)) {
+            *ctx->showSizeInputBox = !*ctx->showSizeInputBox;
+            if (!*ctx->showSizeInputBox) {
+                *ctx->sizeInputActive = false;
+            }
         }
 
         if (IsKeyPressed(KEY_U)) {

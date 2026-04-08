@@ -20,11 +20,13 @@ Rectangle ui_get_size_input_box(int height)
 
 static void draw_pause_menu(const UiDrawContext *ctx)
 {
-    const char *items[13] = {
+    const char *items[15] = {
         "Resume",
         TextFormat("HUD: %s", ctx->showHud ? "ON" : "OFF"),
         TextFormat("Legend: %s", ctx->showLegend ? "ON" : "OFF"),
         TextFormat("Values: %s", ctx->showValues ? "ON" : "OFF"),
+        TextFormat("Telemetry: %s", ctx->showTelemetry ? "ON" : "OFF"),
+        TextFormat("Size Input Box: %s", ctx->showSizeInputBox ? "ON" : "OFF"),
         TextFormat("Minimal UI: %s", ctx->minimalUiMode ? "ON" : "OFF"),
         TextFormat("Compare Audio: %s", ctx->compareAudioEnabled ? "ON" : "OFF"),
         TextFormat("Swap Audio: %s", ctx->swapAudioEnabled ? "ON" : "OFF"),
@@ -37,7 +39,7 @@ static void draw_pause_menu(const UiDrawContext *ctx)
     };
 
     int menuWidth = 460;
-    int menuHeight = 540;
+    int menuHeight = 610;
     int menuX = (ctx->width - menuWidth) / 2;
     int menuY = (ctx->height - menuHeight) / 2;
 
@@ -45,9 +47,9 @@ static void draw_pause_menu(const UiDrawContext *ctx)
     DrawRectangle(menuX, menuY, menuWidth, menuHeight, Fade(DARKGRAY, 0.90f));
     DrawRectangleLinesEx((Rectangle){ (float)menuX, (float)menuY, (float)menuWidth, (float)menuHeight }, 2.0f, SKYBLUE);
     DrawText("Pause Menu", menuX + 20, menuY + 16, 30, YELLOW);
-    DrawText("UP/DOWN + ENTER, ESC to close", menuX + 20, menuY + 52, 18, LIGHTGRAY);
+    DrawText("UP/DOWN + ENTER, SPACE to close", menuX + 20, menuY + 52, 18, LIGHTGRAY);
 
-    for (int i = 0; i < 13; i++) {
+    for (int i = 0; i < 15; i++) {
         Color c = (i == ctx->pauseMenuSelection) ? YELLOW : RAYWHITE;
         DrawText(items[i], menuX + 24, menuY + 88 + i * 32, 24, c);
     }
@@ -141,12 +143,14 @@ void draw_elements(const UiDrawContext *ctx)
         return;
     }
 
-    Rectangle sizeBox = ui_get_size_input_box(ctx->height);
-    DrawRectangleRec(sizeBox, Fade(DARKGRAY, 0.35f));
-    DrawRectangleLinesEx(sizeBox, 2.0f, ctx->sizeInputActive ? YELLOW : GRAY);
-    DrawText("Array Size:", 30, (int)sizeBox.y + 7, 20, RAYWHITE);
-    DrawText(ctx->sizeInputActive ? ctx->sizeInput : TextFormat("%d", ctx->arraySize), 145, (int)sizeBox.y + 7, 20, SKYBLUE);
-    DrawText(TextFormat("(2-%d, Enter to apply)", ctx->maxSize), 290, (int)sizeBox.y + 8, 18, LIGHTGRAY);
+    if (ctx->showSizeInputBox) {
+        Rectangle sizeBox = ui_get_size_input_box(ctx->height);
+        DrawRectangleRec(sizeBox, Fade(DARKGRAY, 0.35f));
+        DrawRectangleLinesEx(sizeBox, 2.0f, ctx->sizeInputActive ? YELLOW : GRAY);
+        DrawText("Array Size:", 30, (int)sizeBox.y + 7, 20, RAYWHITE);
+        DrawText(ctx->sizeInputActive ? ctx->sizeInput : TextFormat("%d", ctx->arraySize), 145, (int)sizeBox.y + 7, 20, SKYBLUE);
+        DrawText(TextFormat("(2-%d, Enter to apply)", ctx->maxSize), 290, (int)sizeBox.y + 8, 18, LIGHTGRAY);
+    }
 
     DrawText(TextFormat("Sort: %s (TAB)", ctx->sortName), 20, 20, 30, YELLOW);
     DrawText(TextFormat("Speed: %.1fx", ctx->speedMultiplier), 20, 56, 30, YELLOW);
@@ -160,30 +164,34 @@ void draw_elements(const UiDrawContext *ctx)
     DrawText(TextFormat("Minimal [U]: %s", ctx->minimalUiMode ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
     DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 307, 20, LIGHTGRAY);
     DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 332, 20, LIGHTGRAY);
+    DrawText(TextFormat("Telemetry [T]: %s", ctx->showTelemetry ? "ON" : "OFF"), 20, 357, 20, LIGHTGRAY);
+    DrawText(TextFormat("Size Box [B]: %s", ctx->showSizeInputBox ? "ON" : "OFF"), 20, 382, 20, LIGHTGRAY);
     DrawText(TextFormat("Stats  cmp:%llu  swp:%llu  steps:%llu", ctx->statComparisons, ctx->statSwaps, ctx->statSteps), 360, 20, 20, LIGHTGRAY);
     DrawText(TextFormat("Time: %.2fs  Steps/s: %.1f", ctx->statElapsed, (ctx->statElapsed > 0.0f) ? ((float)ctx->statSteps / ctx->statElapsed) : 0.0f), 360, 40, 20, LIGHTGRAY);
 
-    int telemetryX = 360;
-    int telemetryY = 72;
-    DrawText("Telemetry", telemetryX, telemetryY, 22, SKYBLUE);
+    if (ctx->showTelemetry) {
+        int telemetryX = 360;
+        int telemetryY = 72;
+        DrawText("Telemetry", telemetryX, telemetryY, 22, SKYBLUE);
 
-    if (ctx->currentSort == SORT_BUBBLE) {
-        DrawText(TextFormat("Bubble idx: %d  pass: %d", ctx->bubbleIndex, ctx->bubblePass), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-        DrawText(TextFormat("Compare pair: [%d, %d]", ctx->bubbleIndex, ctx->bubbleIndex + 1), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-    } else if (ctx->currentSort == SORT_INSERTION) {
-        DrawText(TextFormat("Insertion idx: %d  pos: %d", ctx->insertionIndex, ctx->insertionPos), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-        DrawText(TextFormat("Holding key: %s  value: %d", ctx->insertionHoldingKey ? "yes" : "no", ctx->insertionKey), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-    } else if (ctx->currentSort == SORT_SELECTION) {
-        DrawText(TextFormat("Selection i: %d  j: %d", ctx->selectionI, ctx->selectionJ), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-        DrawText(TextFormat("Current min idx: %d", ctx->selectionMin), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-    } else if (ctx->currentSort == SORT_HEAP) {
-        DrawText(TextFormat("Heap phase: %s", ctx->heapBuilding ? "BUILD" : "EXTRACT"), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-        DrawText(TextFormat("Sift root/end: %d / %d", ctx->heapSiftRoot, ctx->heapSiftEnd), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-        DrawText(TextFormat("Sift active: %s  sorted end: %d", ctx->heapSiftActive ? "yes" : "no", ctx->heapSortEnd), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
-    } else {
-        DrawText(TextFormat("Quick range: [%d, %d]", ctx->quickLow, ctx->quickHigh), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
-        DrawText(TextFormat("Pivot idx/value: %d / %d", ctx->quickPivotIndex, ctx->quickPivotValue), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
-        DrawText(TextFormat("i: %d  j: %d  stack: %d", ctx->quickI, ctx->quickJ, ctx->quickTop + 1), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
+        if (ctx->currentSort == SORT_BUBBLE) {
+            DrawText(TextFormat("Bubble idx: %d  pass: %d", ctx->bubbleIndex, ctx->bubblePass), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+            DrawText(TextFormat("Compare pair: [%d, %d]", ctx->bubbleIndex, ctx->bubbleIndex + 1), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_INSERTION) {
+            DrawText(TextFormat("Insertion idx: %d  pos: %d", ctx->insertionIndex, ctx->insertionPos), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+            DrawText(TextFormat("Holding key: %s  value: %d", ctx->insertionHoldingKey ? "yes" : "no", ctx->insertionKey), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_SELECTION) {
+            DrawText(TextFormat("Selection i: %d  j: %d", ctx->selectionI, ctx->selectionJ), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+            DrawText(TextFormat("Current min idx: %d", ctx->selectionMin), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+        } else if (ctx->currentSort == SORT_HEAP) {
+            DrawText(TextFormat("Heap phase: %s", ctx->heapBuilding ? "BUILD" : "EXTRACT"), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+            DrawText(TextFormat("Sift root/end: %d / %d", ctx->heapSiftRoot, ctx->heapSiftEnd), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+            DrawText(TextFormat("Sift active: %s  sorted end: %d", ctx->heapSiftActive ? "yes" : "no", ctx->heapSortEnd), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
+        } else {
+            DrawText(TextFormat("Quick range: [%d, %d]", ctx->quickLow, ctx->quickHigh), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+            DrawText(TextFormat("Pivot idx/value: %d / %d", ctx->quickPivotIndex, ctx->quickPivotValue), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+            DrawText(TextFormat("i: %d  j: %d  stack: %d", ctx->quickI, ctx->quickJ, ctx->quickTop + 1), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
+        }
     }
 
     if (ctx->showLegend) {
@@ -270,11 +278,13 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText(TextFormat("V: Values [%s]", ctx->showValues ? "ON" : "OFF"), 20, infoY + 305, 20, LIGHTGRAY);
         DrawText(TextFormat("L: Legend [%s]", ctx->showLegend ? "ON" : "OFF"), 20, infoY + 330, 20, LIGHTGRAY);
         DrawText(TextFormat("H: HUD [%s]", ctx->showHud ? "ON" : "OFF"), 20, infoY + 355, 20, LIGHTGRAY);
-        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
-        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
-        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
-        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 455, 20, LIGHTGRAY);
-        DrawText("[ / ]: Master Volume", 20, infoY + 480, 20, LIGHTGRAY);
+        DrawText(TextFormat("T: Telemetry [%s]", ctx->showTelemetry ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
+        DrawText(TextFormat("B: Size Box [%s]", ctx->showSizeInputBox ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
+        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
+        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 455, 20, LIGHTGRAY);
+        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 480, 20, LIGHTGRAY);
+        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 505, 20, LIGHTGRAY);
+        DrawText("[ / ]: Master Volume", 20, infoY + 530, 20, LIGHTGRAY);
     }
 
     if (ctx->pauseMenuActive) {

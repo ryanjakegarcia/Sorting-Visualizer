@@ -64,6 +64,8 @@ static void save_preset(float speedMultiplier)
         .showValues = app.showValues,
         .showLegend = app.showLegend,
         .showHud = app.showHud,
+        .showTelemetry = app.showTelemetry,
+        .showSizeInputBox = app.showSizeInputBox,
         .masterVolume = app.masterVolume
     };
 
@@ -87,6 +89,8 @@ static bool load_preset(float *speedMultiplier)
     settings.showValues = app.showValues;
     settings.showLegend = app.showLegend;
     settings.showHud = app.showHud;
+    settings.showTelemetry = app.showTelemetry;
+    settings.showSizeInputBox = app.showSizeInputBox;
     settings.masterVolume = app.masterVolume;
 
     if (!preset_load_from_file(presetPath, &settings)) {
@@ -103,6 +107,11 @@ static bool load_preset(float *speedMultiplier)
     app.showValues = settings.showValues;
     app.showLegend = settings.showLegend;
     app.showHud = settings.showHud;
+    app.showTelemetry = settings.showTelemetry;
+    app.showSizeInputBox = settings.showSizeInputBox;
+    if (!app.showSizeInputBox) {
+        app.sizeInputActive = false;
+    }
     app.masterVolume = settings.masterVolume;
 
     audio_set_master_volume(&app.audio, app.masterVolume);
@@ -407,6 +416,7 @@ int main(){
     shuffle_numbers();
 
     InitWindow(WIDTH, HEIGHT, TITLE);
+    SetExitKey(KEY_ESCAPE);
     audio_init(&app.audio, app.masterVolume);
 
     SetTargetFPS(60);
@@ -439,6 +449,8 @@ int main(){
             .showValues = &app.showValues,
             .showLegend = &app.showLegend,
             .showHud = &app.showHud,
+            .showTelemetry = &app.showTelemetry,
+            .showSizeInputBox = &app.showSizeInputBox,
             .minimalUiMode = &app.minimalUiMode,
             .compareAudioEnabled = &app.compareAudioEnabled,
             .swapAudioEnabled = &app.swapAudioEnabled,
@@ -533,6 +545,8 @@ int main(){
             .insertionKey = app.insertionKey,
             .showValues = app.showValues,
             .showHud = app.showHud,
+            .showTelemetry = app.showTelemetry,
+            .showSizeInputBox = app.showSizeInputBox,
             .sizeInputActive = app.sizeInputActive,
             .sizeInput = app.sizeInput,
             .sortName = get_sort_name(),
