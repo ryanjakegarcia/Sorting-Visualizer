@@ -42,6 +42,8 @@ typedef struct RuntimeState {
 
     bool sortingDone;
     bool paused;
+    bool stepMode;
+    bool stepOnceRequested;
 
     AudioEngine audio;
     bool compareAudioEnabled;

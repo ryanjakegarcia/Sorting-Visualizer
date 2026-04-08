@@ -62,6 +62,7 @@ typedef struct UiDrawContext {
 
     bool showLegend;
     bool paused;
+    bool stepMode;
     bool showInfo;
 
     float autoNextSortDelay;

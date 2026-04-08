@@ -37,6 +37,8 @@ void app_state_init_defaults(RuntimeState *state)
 
     state->sortingDone = false;
     state->paused = false;
+    state->stepMode = false;
+    state->stepOnceRequested = false;
 
     state->audio = (AudioEngine){ 0 };
     state->compareAudioEnabled = true;

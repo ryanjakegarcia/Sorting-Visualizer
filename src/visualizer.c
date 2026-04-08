@@ -252,6 +252,7 @@ static void reset_sort_state(bool reshuffle)
 {
     app.sortingDone = false;
     app.paused = false;
+    app.stepOnceRequested = false;
     app.autoNextSortTimer = 0.0f;
     reset_stats();
     reset_known_sorted();
@@ -429,6 +430,8 @@ int main(){
             .sizeInputCapacity = (int)sizeof(app.sizeInput),
             .sizeInputLen = &app.sizeInputLen,
             .paused = &app.paused,
+            .stepMode = &app.stepMode,
+            .stepOnceRequested = &app.stepOnceRequested,
             .showValues = &app.showValues,
             .showLegend = &app.showLegend,
             .showHud = &app.showHud,
@@ -452,7 +455,7 @@ int main(){
 
         audio_set_master_volume(&app.audio, app.masterVolume);
 
-        if (!app.paused && !app.sortingDone) {
+        if (!app.paused && !app.sortingDone && !app.stepMode) {
             app.statElapsed += dt;
             stepTimer += dt;
             float animationDelay = baseDelay / speedMultiplier;
@@ -463,7 +466,13 @@ int main(){
             }
         }
 
-        if (app.sortingDone && !audio_completion_sweep_active(&app.audio) && !app.paused) {
+        if (app.stepOnceRequested && !app.sortingDone) {
+            run_current_sort_step();
+            app.statSteps++;
+            app.stepOnceRequested = false;
+        }
+
+        if (app.sortingDone && !audio_completion_sweep_active(&app.audio) && !app.paused && !app.stepMode) {
             app.autoNextSortTimer += dt;
             if (app.autoNextSortTimer >= autoNextSortDelay) {
                 cycle_sort_mode();
@@ -530,6 +539,7 @@ int main(){
             .statusText = app.statusText,
             .showLegend = app.showLegend,
             .paused = app.paused,
+            .stepMode = app.stepMode,
             .showInfo = IsKeyDown(KEY_I),
             .autoNextSortDelay = autoNextSortDelay,
             .autoNextSortTimer = app.autoNextSortTimer

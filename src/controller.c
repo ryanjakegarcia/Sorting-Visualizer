@@ -70,6 +70,15 @@ void controller_handle_input(ControllerContext *ctx, float dt)
             *ctx->paused = !*ctx->paused;
         }
 
+        if (IsKeyPressed(KEY_M)) {
+            *ctx->stepMode = !*ctx->stepMode;
+            *ctx->stepOnceRequested = false;
+        }
+
+        if (IsKeyPressed(KEY_N) && (*ctx->paused || *ctx->stepMode)) {
+            *ctx->stepOnceRequested = true;
+        }
+
         if (IsKeyPressed(KEY_V)) {
             *ctx->showValues = !*ctx->showValues;
         }

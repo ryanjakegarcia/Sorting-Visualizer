@@ -21,6 +21,8 @@ typedef struct ControllerContext {
     int *sizeInputLen;
 
     bool *paused;
+    bool *stepMode;
+    bool *stepOnceRequested;
     bool *showValues;
     bool *showLegend;
     bool *showHud;
