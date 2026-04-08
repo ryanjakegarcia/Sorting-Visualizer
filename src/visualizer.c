@@ -12,7 +12,7 @@
 #include "state.h"
 #include "ui.h"
 
-#define MAX_SIZE 200
+#define MAX_SIZE 1000
 
 static const int WIDTH = 1800;
 static const int HEIGHT = 1000;

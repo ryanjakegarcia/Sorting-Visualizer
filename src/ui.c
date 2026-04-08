@@ -14,6 +14,7 @@ void draw_elements(const UiDrawContext *ctx)
     const float availableWidth = (float)ctx->width - 2.0f * padding;
     const float availableHeight = (float)ctx->height - 2.0f * padding;
     float barWidth = (availableWidth - gap * (ctx->arraySize - 1)) / (float)ctx->arraySize;
+    bool useLineMode = (ctx->arraySize >= 120 || barWidth < 3.0f);
 
     for (int i = 0; i < ctx->arraySize; i++) {
         int displayValue = ctx->numbers[i];
@@ -50,10 +51,15 @@ void draw_elements(const UiDrawContext *ctx)
             barColor = GREEN;
         }
 
-        Rectangle bar = { x, y, barWidth, barHeight };
-        DrawRectangleRec(bar, barColor);
+        if (useLineMode) {
+            float centerX = x + barWidth * 0.5f;
+            DrawLineEx((Vector2){ centerX, (float)ctx->height - padding }, (Vector2){ centerX, y }, 2.0f, barColor);
+        } else {
+            Rectangle bar = { x, y, barWidth, barHeight };
+            DrawRectangleRec(bar, barColor);
+        }
 
-        if (ctx->showValues && ctx->showHud) {
+        if (ctx->showValues && ctx->showHud && !useLineMode) {
             int fontSize = 20;
             const char *valueText = TextFormat("%d", displayValue);
             int textWidth = MeasureText(valueText, fontSize);
@@ -81,10 +87,11 @@ void draw_elements(const UiDrawContext *ctx)
     DrawText(TextFormat("Dist: %s [D]", ctx->distributionName), 20, 122, 24, SKYBLUE);
     DrawText(TextFormat("Vol: %.2f [ / ]", ctx->masterVolume), 20, 152, 24, SKYBLUE);
     DrawText(TextFormat("Audio C:%s S:%s P:%s F:%s", ctx->compareAudioEnabled ? "ON" : "OFF", ctx->swapAudioEnabled ? "ON" : "OFF", ctx->progressAudioEnabled ? "ON" : "OFF", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, 182, 20, LIGHTGRAY);
-    DrawText(TextFormat("Step [M]: %s  One [N]", ctx->stepMode ? "ON" : "OFF"), 20, 207, 20, LIGHTGRAY);
-    DrawText(TextFormat("Values [V]: %s", ctx->showValues ? "ON" : "OFF"), 20, 232, 20, LIGHTGRAY);
-    DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 257, 20, LIGHTGRAY);
-    DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
+    DrawText(TextFormat("Render: %s", useLineMode ? "LINES" : "BARS"), 20, 207, 20, LIGHTGRAY);
+    DrawText(TextFormat("Step [M]: %s  One [N]", ctx->stepMode ? "ON" : "OFF"), 20, 232, 20, LIGHTGRAY);
+    DrawText(TextFormat("Values [V]: %s", ctx->showValues ? "ON" : "OFF"), 20, 257, 20, LIGHTGRAY);
+    DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
+    DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 307, 20, LIGHTGRAY);
     DrawText(TextFormat("Stats  cmp:%llu  swp:%llu  steps:%llu", ctx->statComparisons, ctx->statSwaps, ctx->statSteps), 360, 20, 20, LIGHTGRAY);
     DrawText(TextFormat("Time: %.2fs  Steps/s: %.1f", ctx->statElapsed, (ctx->statElapsed > 0.0f) ? ((float)ctx->statSteps / ctx->statElapsed) : 0.0f), 360, 40, 20, LIGHTGRAY);
 
@@ -137,7 +144,7 @@ void draw_elements(const UiDrawContext *ctx)
         }
     }
 
-    int messageY = 315;
+    int messageY = 340;
     if (ctx->paused) {
         DrawText("PAUSED", 20, messageY, 30, YELLOW);
         messageY += 36;
