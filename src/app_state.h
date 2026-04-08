@@ -53,6 +53,7 @@ typedef struct RuntimeState {
     bool showValues;
     bool showLegend;
     bool showHud;
+    bool minimalUiMode;
     float masterVolume;
     float autoNextSortTimer;
 

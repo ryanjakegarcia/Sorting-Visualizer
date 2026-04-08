@@ -74,6 +74,12 @@ void draw_elements(const UiDrawContext *ctx)
         return;
     }
 
+    if (ctx->minimalUiMode) {
+        DrawText(TextFormat("Sort: %s", ctx->sortName), 20, 20, 30, YELLOW);
+        DrawText(TextFormat("Size: %d", ctx->arraySize), 20, 56, 30, SKYBLUE);
+        return;
+    }
+
     Rectangle sizeBox = ui_get_size_input_box(ctx->height);
     DrawRectangleRec(sizeBox, Fade(DARKGRAY, 0.35f));
     DrawRectangleLinesEx(sizeBox, 2.0f, ctx->sizeInputActive ? YELLOW : GRAY);
@@ -90,8 +96,9 @@ void draw_elements(const UiDrawContext *ctx)
     DrawText(TextFormat("Render: %s", useLineMode ? "LINES" : "BARS"), 20, 207, 20, LIGHTGRAY);
     DrawText(TextFormat("Step [M]: %s  One [N]", ctx->stepMode ? "ON" : "OFF"), 20, 232, 20, LIGHTGRAY);
     DrawText(TextFormat("Values [V]: %s", ctx->showValues ? "ON" : "OFF"), 20, 257, 20, LIGHTGRAY);
-    DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
-    DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 307, 20, LIGHTGRAY);
+    DrawText(TextFormat("Minimal [U]: %s", ctx->minimalUiMode ? "ON" : "OFF"), 20, 282, 20, LIGHTGRAY);
+    DrawText(TextFormat("Legend [L]: %s", ctx->showLegend ? "ON" : "OFF"), 20, 307, 20, LIGHTGRAY);
+    DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 332, 20, LIGHTGRAY);
     DrawText(TextFormat("Stats  cmp:%llu  swp:%llu  steps:%llu", ctx->statComparisons, ctx->statSwaps, ctx->statSteps), 360, 20, 20, LIGHTGRAY);
     DrawText(TextFormat("Time: %.2fs  Steps/s: %.1f", ctx->statElapsed, (ctx->statElapsed > 0.0f) ? ((float)ctx->statSteps / ctx->statElapsed) : 0.0f), 360, 40, 20, LIGHTGRAY);
 
@@ -144,7 +151,7 @@ void draw_elements(const UiDrawContext *ctx)
         }
     }
 
-    int messageY = 340;
+    int messageY = 365;
     if (ctx->paused) {
         DrawText("PAUSED", 20, messageY, 30, YELLOW);
         messageY += 36;
@@ -171,16 +178,17 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText("D: Cycle Distribution", 20, infoY + 105, 20, LIGHTGRAY);
         DrawText("M: Toggle Step Mode", 20, infoY + 130, 20, LIGHTGRAY);
         DrawText("N: Single Step", 20, infoY + 155, 20, LIGHTGRAY);
-        DrawText("R: Reshuffle/Restart", 20, infoY + 180, 20, LIGHTGRAY);
-        DrawText("K: Save Preset", 20, infoY + 205, 20, LIGHTGRAY);
-        DrawText("O: Load Preset", 20, infoY + 230, 20, LIGHTGRAY);
-        DrawText(TextFormat("V: Values [%s]", ctx->showValues ? "ON" : "OFF"), 20, infoY + 255, 20, LIGHTGRAY);
-        DrawText(TextFormat("L: Legend [%s]", ctx->showLegend ? "ON" : "OFF"), 20, infoY + 280, 20, LIGHTGRAY);
-        DrawText(TextFormat("H: HUD [%s]", ctx->showHud ? "ON" : "OFF"), 20, infoY + 305, 20, LIGHTGRAY);
-        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 330, 20, LIGHTGRAY);
-        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 355, 20, LIGHTGRAY);
-        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
-        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
-        DrawText("[ / ]: Master Volume", 20, infoY + 430, 20, LIGHTGRAY);
+        DrawText("U: Toggle Minimal UI", 20, infoY + 180, 20, LIGHTGRAY);
+        DrawText("R: Reshuffle/Restart", 20, infoY + 205, 20, LIGHTGRAY);
+        DrawText("K: Save Preset", 20, infoY + 230, 20, LIGHTGRAY);
+        DrawText("O: Load Preset", 20, infoY + 255, 20, LIGHTGRAY);
+        DrawText(TextFormat("V: Values [%s]", ctx->showValues ? "ON" : "OFF"), 20, infoY + 280, 20, LIGHTGRAY);
+        DrawText(TextFormat("L: Legend [%s]", ctx->showLegend ? "ON" : "OFF"), 20, infoY + 305, 20, LIGHTGRAY);
+        DrawText(TextFormat("H: HUD [%s]", ctx->showHud ? "ON" : "OFF"), 20, infoY + 330, 20, LIGHTGRAY);
+        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 355, 20, LIGHTGRAY);
+        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
+        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
+        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
+        DrawText("[ / ]: Master Volume", 20, infoY + 455, 20, LIGHTGRAY);
     }
 }

@@ -435,6 +435,7 @@ int main(){
             .showValues = &app.showValues,
             .showLegend = &app.showLegend,
             .showHud = &app.showHud,
+            .minimalUiMode = &app.minimalUiMode,
             .compareAudioEnabled = &app.compareAudioEnabled,
             .swapAudioEnabled = &app.swapAudioEnabled,
             .progressAudioEnabled = &app.progressAudioEnabled,
@@ -540,6 +541,7 @@ int main(){
             .showLegend = app.showLegend,
             .paused = app.paused,
             .stepMode = app.stepMode,
+            .minimalUiMode = app.minimalUiMode,
             .showInfo = IsKeyDown(KEY_I),
             .autoNextSortDelay = autoNextSortDelay,
             .autoNextSortTimer = app.autoNextSortTimer

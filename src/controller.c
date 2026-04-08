@@ -21,8 +21,9 @@ static int sanitize_array_size(int requested, int maxSize, bool *usedDefault)
 
 void controller_handle_input(ControllerContext *ctx, float dt)
 {
+    bool allowSizeBoxInteraction = *ctx->showHud && !*ctx->minimalUiMode;
     Rectangle sizeBox = ui_get_size_input_box(ctx->windowHeight);
-    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+    if (allowSizeBoxInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         Vector2 mousePos = GetMousePosition();
         if (CheckCollisionPointRec(mousePos, sizeBox)) {
             *ctx->sizeInputActive = true;
@@ -89,6 +90,13 @@ void controller_handle_input(ControllerContext *ctx, float dt)
 
         if (IsKeyPressed(KEY_H)) {
             *ctx->showHud = !*ctx->showHud;
+        }
+
+        if (IsKeyPressed(KEY_U)) {
+            *ctx->minimalUiMode = !*ctx->minimalUiMode;
+            if (*ctx->minimalUiMode) {
+                *ctx->sizeInputActive = false;
+            }
         }
 
         if (IsKeyPressed(KEY_C)) {
