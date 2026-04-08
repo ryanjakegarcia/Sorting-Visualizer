@@ -17,7 +17,6 @@
 static const int WIDTH = 1800;
 static const int HEIGHT = 1000;
 static const char* TITLE = "Sorting Visualizer";
-static const Color DEFAULT_COLOR = LIGHTGRAY;
 
 int numbers[MAX_SIZE];
 bool knownSorted[MAX_SIZE];
@@ -29,6 +28,8 @@ static int quickStackHigh[MAX_SIZE];
 static const float masterVolumeStep = 0.05f;
 static const float autoNextSortDelay = 3.0f;
 static const char *presetPath = "presets/visualizer_preset.cfg";
+
+static void init_numbers_sequential(void);
 
 static void set_status_text(const char *text)
 {
@@ -112,11 +113,63 @@ static bool load_preset(float *speedMultiplier)
 
 static void shuffle_numbers(void)
 {
+    if (app.distributionMode == DIST_REVERSED) {
+        for (int i = 0; i < app.arraySize; i++) {
+            numbers[i] = app.arraySize - i;
+        }
+        return;
+    }
+
+    if (app.distributionMode == DIST_FEW_UNIQUE) {
+        int uniqueCount = app.arraySize / 12;
+        if (uniqueCount < 3) uniqueCount = 3;
+        if (uniqueCount > 16) uniqueCount = 16;
+
+        for (int i = 0; i < app.arraySize; i++) {
+            int bucket = rand() % uniqueCount;
+            float t = (float)bucket / (float)(uniqueCount - 1);
+            int value = 1 + (int)(t * (float)(app.arraySize - 1));
+            numbers[i] = value;
+        }
+        return;
+    }
+
+    if (app.distributionMode == DIST_SAWTOOTH) {
+        int period = app.arraySize / 10;
+        if (period < 4) period = 4;
+        if (period > 24) period = 24;
+
+        for (int i = 0; i < app.arraySize; i++) {
+            int step = i % period;
+            float t = (float)step / (float)(period - 1);
+            int value = 1 + (int)(t * (float)(app.arraySize - 1));
+            numbers[i] = value;
+        }
+        return;
+    }
+
+    init_numbers_sequential();
+
     for (int i = app.arraySize - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         int temp = numbers[i];
         numbers[i] = numbers[j];
         numbers[j] = temp;
+    }
+
+    if (app.distributionMode == DIST_NEARLY_SORTED) {
+        int swaps = app.arraySize / 10;
+        if (swaps < 1) swaps = 1;
+        for (int s = 0; s < swaps; s++) {
+            int i = rand() % app.arraySize;
+            int delta = (rand() % 7) - 3;
+            int j = i + delta;
+            if (j < 0) j = 0;
+            if (j >= app.arraySize) j = app.arraySize - 1;
+            int tmp = numbers[i];
+            numbers[i] = numbers[j];
+            numbers[j] = tmp;
+        }
     }
 }
 
@@ -229,6 +282,41 @@ static void cycle_sort_mode(void)
     }
 
     reset_sort_state(true);
+}
+
+static const char *get_distribution_name(void)
+{
+    if (app.distributionMode == DIST_NEARLY_SORTED) {
+        return "Nearly Sorted";
+    }
+    if (app.distributionMode == DIST_REVERSED) {
+        return "Reversed";
+    }
+    if (app.distributionMode == DIST_FEW_UNIQUE) {
+        return "Few Unique";
+    }
+    if (app.distributionMode == DIST_SAWTOOTH) {
+        return "Sawtooth";
+    }
+    return "Random";
+}
+
+static void cycle_distribution_mode(void)
+{
+    if (app.distributionMode == DIST_RANDOM) {
+        app.distributionMode = DIST_NEARLY_SORTED;
+    } else if (app.distributionMode == DIST_NEARLY_SORTED) {
+        app.distributionMode = DIST_REVERSED;
+    } else if (app.distributionMode == DIST_REVERSED) {
+        app.distributionMode = DIST_FEW_UNIQUE;
+    } else if (app.distributionMode == DIST_FEW_UNIQUE) {
+        app.distributionMode = DIST_SAWTOOTH;
+    } else {
+        app.distributionMode = DIST_RANDOM;
+    }
+
+    reset_sort_state(true);
+    set_status_text(TextFormat("Distribution: %s", get_distribution_name()));
 }
 
 static void reset_sort_reshuffle_callback(void)
@@ -354,6 +442,7 @@ int main(){
             .speedStep = speedStep,
             .stepTimer = &stepTimer,
             .cycleSort = cycle_sort_mode,
+            .cycleDistribution = cycle_distribution_mode,
             .resetSort = reset_sort_reshuffle_callback,
             .savePreset = save_preset,
             .loadPreset = load_preset,
@@ -426,6 +515,7 @@ int main(){
             .sizeInputActive = app.sizeInputActive,
             .sizeInput = app.sizeInput,
             .sortName = get_sort_name(),
+            .distributionName = get_distribution_name(),
             .speedMultiplier = speedMultiplier,
             .masterVolume = app.masterVolume,
             .compareAudioEnabled = app.compareAudioEnabled,

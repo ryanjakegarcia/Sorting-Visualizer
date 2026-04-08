@@ -43,6 +43,7 @@ typedef struct UiDrawContext {
     const char *sizeInput;
 
     const char *sortName;
+    const char *distributionName;
     float speedMultiplier;
     float masterVolume;
 

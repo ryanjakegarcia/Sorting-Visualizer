@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 typedef void (*ControllerCycleSortFn)(void);
+typedef void (*ControllerCycleDistributionFn)(void);
 typedef void (*ControllerResetSortFn)(void);
 typedef void (*ControllerSavePresetFn)(float speedMultiplier);
 typedef bool (*ControllerLoadPresetFn)(float *speedMultiplier);
@@ -35,6 +36,7 @@ typedef struct ControllerContext {
     float *stepTimer;
 
     ControllerCycleSortFn cycleSort;
+    ControllerCycleDistributionFn cycleDistribution;
     ControllerResetSortFn resetSort;
     ControllerSavePresetFn savePreset;
     ControllerLoadPresetFn loadPreset;

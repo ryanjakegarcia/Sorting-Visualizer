@@ -9,4 +9,12 @@ typedef enum SortMode {
     SORT_QUICK
 } SortMode;
 
+typedef enum DistributionMode {
+    DIST_RANDOM,
+    DIST_NEARLY_SORTED,
+    DIST_REVERSED,
+    DIST_FEW_UNIQUE,
+    DIST_SAWTOOTH
+} DistributionMode;
+
 #endif

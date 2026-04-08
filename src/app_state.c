@@ -6,6 +6,7 @@ void app_state_init_defaults(RuntimeState *state)
     state->sizeInputActive = false;
     state->sizeInput[0] = '\0';
     state->sizeInputLen = 0;
+    state->distributionMode = DIST_RANDOM;
 
     state->currentSort = SORT_BUBBLE;
     state->bubbleIndex = 0;

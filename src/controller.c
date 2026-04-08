@@ -113,6 +113,13 @@ void controller_handle_input(ControllerContext *ctx, float dt)
             *ctx->stepTimer = 0.0f;
         }
 
+        if (IsKeyPressed(KEY_D)) {
+            if (ctx->cycleDistribution != NULL) {
+                ctx->cycleDistribution();
+            }
+            *ctx->stepTimer = 0.0f;
+        }
+
         if (IsKeyPressed(KEY_R)) {
             if (ctx->resetSort != NULL) {
                 ctx->resetSort();

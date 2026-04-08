@@ -11,6 +11,7 @@ typedef struct RuntimeState {
     bool sizeInputActive;
     char sizeInput[16];
     int sizeInputLen;
+    DistributionMode distributionMode;
 
     SortMode currentSort;
     int bubbleIndex;
