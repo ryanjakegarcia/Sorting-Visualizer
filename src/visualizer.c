@@ -1011,6 +1011,45 @@ int main(){
             }
 
             if (benchmark.active) {
+                int panelX = WIDTH - 700;
+                int panelY = 220;
+                int panelW = 660;
+                int panelH = HEIGHT - panelY - 30;
+                if (panelX < 20) panelX = 20;
+                if (panelW < 360) panelW = 360;
+                if (panelH < 240) panelH = 240;
+
+                int tableY = panelY + 146;
+                int rowY = tableY + 28;
+                int maxRows = (panelY + panelH - rowY - 26) / 24;
+                if (maxRows < 1) maxRows = 1;
+                int rowsToDraw = benchmark.resultCount;
+                if (rowsToDraw > maxRows) rowsToDraw = maxRows;
+
+                Vector2 mousePos = GetMousePosition();
+                int hoveredRow = -1;
+                for (int i = 0; i < rowsToDraw; i++) {
+                    Rectangle rowRect = { (float)(panelX + 10), (float)(rowY + i * 24 - 2), (float)(panelW - 20), 24.0f };
+                    if (CheckCollisionPointRec(mousePos, rowRect)) {
+                        hoveredRow = i;
+                        break;
+                    }
+                }
+
+                if (hoveredRow >= 0) {
+                    benchmark.selectedConfigSortIndex = hoveredRow;
+                }
+
+                if (hoveredRow >= 0 && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                    benchmark.selectedConfigSortIndex = hoveredRow;
+                    if (mousePos.x <= (float)(panelX + 48)) {
+                        int idx = hoveredRow;
+                        benchmark.sortEnabled[idx] = !benchmark.sortEnabled[idx];
+                        benchmark_build_sequence();
+                        set_status_text(TextFormat("Benchmark subset: %d selected", benchmark.sequenceCount));
+                    }
+                }
+
                 if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_LEFT_BRACKET)) {
                     benchmark.selectedConfigSortIndex--;
                     if (benchmark.selectedConfigSortIndex < 0) {
