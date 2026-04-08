@@ -22,6 +22,10 @@ typedef struct UiDrawContext {
     int quickPivotIndex;
     int quickJ;
     int quickI;
+    int quickLow;
+    int quickHigh;
+    int quickTop;
+    int quickPivotValue;
     int heapCandidateIndex;
     int heapFocusIndex;
     int bubbleIndex;
@@ -33,6 +37,9 @@ typedef struct UiDrawContext {
     int selectionI;
     int heapSortEnd;
     bool heapBuilding;
+    int heapSiftRoot;
+    int heapSiftEnd;
+    bool heapSiftActive;
 
     bool insertionHoldingKey;
     int insertionKey;

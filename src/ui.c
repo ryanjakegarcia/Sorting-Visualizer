@@ -1,7 +1,16 @@
 #include "ui.h"
 
+#include <stdlib.h>
+
 static const float padding = 20.0f;
 static const float gap = 4.0f;
+
+static float clampf(float v, float lo, float hi)
+{
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
 
 Rectangle ui_get_size_input_box(int height)
 {
@@ -15,6 +24,9 @@ void draw_elements(const UiDrawContext *ctx)
     const float availableHeight = (float)ctx->height - 2.0f * padding;
     float barWidth = (availableWidth - gap * (ctx->arraySize - 1)) / (float)ctx->arraySize;
     bool useLineMode = (ctx->arraySize >= 120 || barWidth < 3.0f);
+    float density = (ctx->arraySize > 0) ? ((float)ctx->arraySize / availableWidth) : 0.0f;
+    float densityAlphaBase = clampf(0.95f - density * 0.25f, 0.35f, 0.95f);
+    float lineThickness = (ctx->arraySize >= 700) ? 1.0f : ((ctx->arraySize >= 300) ? 1.5f : 2.0f);
 
     for (int i = 0; i < ctx->arraySize; i++) {
         int displayValue = ctx->numbers[i];
@@ -52,8 +64,16 @@ void draw_elements(const UiDrawContext *ctx)
         }
 
         if (useLineMode) {
+            float activity = 0.0f;
+            if (ctx->arraySize > 1) {
+                int prev = (i > 0) ? ctx->numbers[i - 1] : displayValue;
+                int next = (i + 1 < ctx->arraySize) ? ctx->numbers[i + 1] : displayValue;
+                activity = ((float)abs(displayValue - prev) + (float)abs(displayValue - next)) * 0.5f / (float)ctx->arraySize;
+            }
+            float alpha = clampf(densityAlphaBase + activity * 0.35f, 0.30f, 1.0f);
+            Color lineColor = Fade(barColor, alpha);
             float centerX = x + barWidth * 0.5f;
-            DrawLineEx((Vector2){ centerX, (float)ctx->height - padding }, (Vector2){ centerX, y }, 2.0f, barColor);
+            DrawLineEx((Vector2){ centerX, (float)ctx->height - padding }, (Vector2){ centerX, y }, lineThickness, lineColor);
         } else {
             Rectangle bar = { x, y, barWidth, barHeight };
             DrawRectangleRec(bar, barColor);
@@ -101,6 +121,29 @@ void draw_elements(const UiDrawContext *ctx)
     DrawText(TextFormat("HUD [H]: %s", ctx->showHud ? "ON" : "OFF"), 20, 332, 20, LIGHTGRAY);
     DrawText(TextFormat("Stats  cmp:%llu  swp:%llu  steps:%llu", ctx->statComparisons, ctx->statSwaps, ctx->statSteps), 360, 20, 20, LIGHTGRAY);
     DrawText(TextFormat("Time: %.2fs  Steps/s: %.1f", ctx->statElapsed, (ctx->statElapsed > 0.0f) ? ((float)ctx->statSteps / ctx->statElapsed) : 0.0f), 360, 40, 20, LIGHTGRAY);
+
+    int telemetryX = 360;
+    int telemetryY = 72;
+    DrawText("Telemetry", telemetryX, telemetryY, 22, SKYBLUE);
+
+    if (ctx->currentSort == SORT_BUBBLE) {
+        DrawText(TextFormat("Bubble idx: %d  pass: %d", ctx->bubbleIndex, ctx->bubblePass), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+        DrawText(TextFormat("Compare pair: [%d, %d]", ctx->bubbleIndex, ctx->bubbleIndex + 1), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+    } else if (ctx->currentSort == SORT_INSERTION) {
+        DrawText(TextFormat("Insertion idx: %d  pos: %d", ctx->insertionIndex, ctx->insertionPos), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+        DrawText(TextFormat("Holding key: %s  value: %d", ctx->insertionHoldingKey ? "yes" : "no", ctx->insertionKey), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+    } else if (ctx->currentSort == SORT_SELECTION) {
+        DrawText(TextFormat("Selection i: %d  j: %d", ctx->selectionI, ctx->selectionJ), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+        DrawText(TextFormat("Current min idx: %d", ctx->selectionMin), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+    } else if (ctx->currentSort == SORT_HEAP) {
+        DrawText(TextFormat("Heap phase: %s", ctx->heapBuilding ? "BUILD" : "EXTRACT"), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+        DrawText(TextFormat("Sift root/end: %d / %d", ctx->heapSiftRoot, ctx->heapSiftEnd), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+        DrawText(TextFormat("Sift active: %s  sorted end: %d", ctx->heapSiftActive ? "yes" : "no", ctx->heapSortEnd), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
+    } else {
+        DrawText(TextFormat("Quick range: [%d, %d]", ctx->quickLow, ctx->quickHigh), telemetryX, telemetryY + 26, 20, LIGHTGRAY);
+        DrawText(TextFormat("Pivot idx/value: %d / %d", ctx->quickPivotIndex, ctx->quickPivotValue), telemetryX, telemetryY + 50, 20, LIGHTGRAY);
+        DrawText(TextFormat("i: %d  j: %d  stack: %d", ctx->quickI, ctx->quickJ, ctx->quickTop + 1), telemetryX, telemetryY + 74, 20, LIGHTGRAY);
+    }
 
     if (ctx->showLegend) {
         int legendX = ctx->width - 280;
@@ -176,19 +219,20 @@ void draw_elements(const UiDrawContext *ctx)
         DrawText("UP/DOWN: Speed +/-", 20, infoY + 55, 20, LIGHTGRAY);
         DrawText("TAB: Cycle Sort", 20, infoY + 80, 20, LIGHTGRAY);
         DrawText("D: Cycle Distribution", 20, infoY + 105, 20, LIGHTGRAY);
-        DrawText("M: Toggle Step Mode", 20, infoY + 130, 20, LIGHTGRAY);
-        DrawText("N: Single Step", 20, infoY + 155, 20, LIGHTGRAY);
-        DrawText("U: Toggle Minimal UI", 20, infoY + 180, 20, LIGHTGRAY);
-        DrawText("R: Reshuffle/Restart", 20, infoY + 205, 20, LIGHTGRAY);
-        DrawText("K: Save Preset", 20, infoY + 230, 20, LIGHTGRAY);
-        DrawText("O: Load Preset", 20, infoY + 255, 20, LIGHTGRAY);
-        DrawText(TextFormat("V: Values [%s]", ctx->showValues ? "ON" : "OFF"), 20, infoY + 280, 20, LIGHTGRAY);
-        DrawText(TextFormat("L: Legend [%s]", ctx->showLegend ? "ON" : "OFF"), 20, infoY + 305, 20, LIGHTGRAY);
-        DrawText(TextFormat("H: HUD [%s]", ctx->showHud ? "ON" : "OFF"), 20, infoY + 330, 20, LIGHTGRAY);
-        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 355, 20, LIGHTGRAY);
-        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
-        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
-        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
-        DrawText("[ / ]: Master Volume", 20, infoY + 455, 20, LIGHTGRAY);
+        DrawText("1/2/3: Size 200/500/1000", 20, infoY + 130, 20, LIGHTGRAY);
+        DrawText("M: Toggle Step Mode", 20, infoY + 155, 20, LIGHTGRAY);
+        DrawText("N: Single Step", 20, infoY + 180, 20, LIGHTGRAY);
+        DrawText("U: Toggle Minimal UI", 20, infoY + 205, 20, LIGHTGRAY);
+        DrawText("R: Reshuffle/Restart", 20, infoY + 230, 20, LIGHTGRAY);
+        DrawText("K: Save Preset", 20, infoY + 255, 20, LIGHTGRAY);
+        DrawText("O: Load Preset", 20, infoY + 280, 20, LIGHTGRAY);
+        DrawText(TextFormat("V: Values [%s]", ctx->showValues ? "ON" : "OFF"), 20, infoY + 305, 20, LIGHTGRAY);
+        DrawText(TextFormat("L: Legend [%s]", ctx->showLegend ? "ON" : "OFF"), 20, infoY + 330, 20, LIGHTGRAY);
+        DrawText(TextFormat("H: HUD [%s]", ctx->showHud ? "ON" : "OFF"), 20, infoY + 355, 20, LIGHTGRAY);
+        DrawText(TextFormat("C: Compare [%s]", ctx->compareAudioEnabled ? "ON" : "OFF"), 20, infoY + 380, 20, LIGHTGRAY);
+        DrawText(TextFormat("S: Swap [%s]", ctx->swapAudioEnabled ? "ON" : "OFF"), 20, infoY + 405, 20, LIGHTGRAY);
+        DrawText(TextFormat("P: Progress [%s]", ctx->progressAudioEnabled ? "ON" : "OFF"), 20, infoY + 430, 20, LIGHTGRAY);
+        DrawText(TextFormat("F: Finish [%s]", ctx->finishAudioEnabled ? "ON" : "OFF"), 20, infoY + 455, 20, LIGHTGRAY);
+        DrawText("[ / ]: Master Volume", 20, infoY + 480, 20, LIGHTGRAY);
     }
 }

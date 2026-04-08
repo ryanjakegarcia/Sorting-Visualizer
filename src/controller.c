@@ -137,6 +137,27 @@ void controller_handle_input(ControllerContext *ctx, float dt)
             *ctx->stepTimer = 0.0f;
         }
 
+        if (IsKeyPressed(KEY_ONE)) {
+            if (ctx->applyArraySize != NULL) {
+                ctx->applyArraySize(200, false);
+            }
+            *ctx->stepTimer = 0.0f;
+        }
+
+        if (IsKeyPressed(KEY_TWO)) {
+            if (ctx->applyArraySize != NULL) {
+                ctx->applyArraySize(500, false);
+            }
+            *ctx->stepTimer = 0.0f;
+        }
+
+        if (IsKeyPressed(KEY_THREE)) {
+            if (ctx->applyArraySize != NULL) {
+                ctx->applyArraySize(1000, false);
+            }
+            *ctx->stepTimer = 0.0f;
+        }
+
         if (IsKeyPressed(KEY_R)) {
             if (ctx->resetSort != NULL) {
                 ctx->resetSort();
